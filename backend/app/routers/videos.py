@@ -3,10 +3,10 @@
 import json
 import logging
 import os
-from pathlib import Path
+from pathlib import Path as FilePath
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.config import settings
@@ -124,12 +124,13 @@ async def assemble_final_video(request: AssembleVideoRequest):
 
 
 @router.get("/{video_id}/download")
-async def download_video(video_id: str):
+async def download_video(video_id: str = Path(pattern=r"^[a-f0-9]{12}$")):
     """Download a generated video by its ID.
 
     Serves the MP4 file for the given video ID.
+    The video_id must be a 12-character lowercase hex string.
     """
-    output_dir = Path(settings.output_dir) / "videos"
+    output_dir = FilePath(settings.output_dir) / "videos"
     video_path = output_dir / f"{video_id}.mp4"
 
     if not video_path.exists():

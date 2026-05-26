@@ -1,5 +1,6 @@
 """Video assembly service using MoviePy and FFmpeg."""
 
+import asyncio
 import logging
 import os
 import shutil
@@ -314,29 +315,39 @@ async def assemble_video(
         raise ValueError("No scene clips could be assembled")
 
     # Concatenate all scenes
-    if len(scene_clips) > 1:
-        final = concatenate_videoclips(scene_clips, method="compose", padding=-0.5)
-    else:
-        final = scene_clips[0]
+    final = None
+    try:
+        if len(scene_clips) > 1:
+            final = concatenate_videoclips(scene_clips, method="compose", padding=-0.5)
+        else:
+            final = scene_clips[0]
 
-    # Write final video
-    logger.info(f"Writing video to {output_path}...")
-    final.write_videofile(
-        str(output_path),
-        fps=24,
-        codec="libx264",
-        audio_codec="aac",
-        preset="medium",
-        threads=2,
-        logger=None,
-    )
+        # Write final video in a thread to avoid blocking the async event loop
+        logger.info(f"Writing video to {output_path}...")
+        await asyncio.to_thread(
+            final.write_videofile,
+            str(output_path),
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            preset="medium",
+            threads=2,
+            logger=None,
+        )
 
-    total_duration = final.duration if hasattr(final, "duration") else 0
-
-    # Clean up
-    final.close()
-    for clip in scene_clips:
-        clip.close()
+        total_duration = final.duration if hasattr(final, "duration") else 0
+    finally:
+        # Ensure all clips are closed even if write_videofile raises
+        if final is not None:
+            try:
+                final.close()
+            except Exception:
+                pass
+        for clip in scene_clips:
+            try:
+                clip.close()
+            except Exception:
+                pass
 
     # Clean up intermediate files (media and TTS audio)
     _cleanup_intermediate_files(tts_results, scene_media)

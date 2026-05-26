@@ -349,8 +349,9 @@ async def source_media(
 ) -> list[SceneMedia]:
     """Source media for all scenes in a script concurrently.
 
-    Uses asyncio.gather with a shared HTTP client to fetch media for all
-    scenes in parallel, reducing latency for longer videos.
+    Uses asyncio.gather with a shared HTTP client and a semaphore to
+    limit concurrency to 5 simultaneous scene-sourcing tasks, preventing
+    API rate-limit issues on Pexels/Pixabay.
 
     Args:
         script: The video script.
@@ -364,17 +365,20 @@ async def source_media(
     media_dir = base_dir / "media" / str(uuid.uuid4())[:8]
     media_dir.mkdir(parents=True, exist_ok=True)
 
-    async with httpx.AsyncClient() as client:
-        tasks = [
-            source_media_for_scene(
+    semaphore = asyncio.Semaphore(5)
+
+    async def _limited_source(scene):
+        async with semaphore:
+            return await source_media_for_scene(
                 visual_description=scene.visual_description,
                 scene_number=scene.scene_number,
                 output_dir=media_dir,
                 client=client,
                 preferred_type=preferred_type,
             )
-            for scene in script.scenes
-        ]
+
+    async with httpx.AsyncClient() as client:
+        tasks = [_limited_source(scene) for scene in script.scenes]
         results = await asyncio.gather(*tasks)
 
     logger.info(f"Media sourcing complete: {len(results)} scenes processed")
