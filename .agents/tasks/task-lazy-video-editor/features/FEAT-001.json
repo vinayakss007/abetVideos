@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Backend editor API endpoints - Add server-side endpoints for scene metadata retrieval, edit instruction processing, and frame preview generation",
+  "status": "in_progress",
+  "steps": [
+    "Add new Pydantic schemas in backend/app/models/schemas.py for editor requests/responses: EditInstruction (reorder list, per-scene trims, text overlays with position/style, per-scene volume levels, background music volume), SceneMetadata (scene_number, thumbnail_url, duration, narration_text, media_info), EditRequest, EditResponse, PreviewFrameRequest, PreviewFrameResponse",
+    "Create a new router file backend/app/routers/editor.py with three endpoints: GET /api/videos/{video_id}/scenes (returns scene metadata including thumbnails extracted from the assembled video or source media), POST /api/videos/{video_id}/edit (accepts EditInstruction and re-renders the video via video_assembler with modifications applied), POST /api/videos/{video_id}/preview-frame (generates a single frame at a given timestamp and returns it as base64 or a temp URL)",
+    "For the /scenes endpoint: read the video's generation data from the output directory (store a metadata JSON alongside the video during assembly). If metadata JSON does not exist, return 404. Extract scene info including media URLs that can serve as thumbnails.",
+    "For the /edit endpoint: accept an EditInstruction payload that describes reordering, trims (start_time, end_time per scene), text overlays (text, x, y, font_size, color, scene_number), and audio level overrides. Apply these via MoviePy operations in a new service function in backend/app/services/video_editor.py. Return the new video_id.",
+    "For the /preview-frame endpoint: use MoviePy to extract a single frame at the given timestamp from the source video, encode as JPEG base64, and return it.",
+    "Create backend/app/services/video_editor.py with functions: apply_edits(video_path, instructions) that handles reorder/trim/overlay/audio, and extract_frame(video_path, timestamp) that returns a PIL Image.",
+    "Modify backend/app/services/video_assembler.py to save a metadata JSON file (video_id_meta.json) alongside the video output containing the script, scene durations, and media references. This enables the editor to reconstruct scene info without re-running generation.",
+    "Register the new editor router in backend/app/main.py alongside the existing videos router.",
+    "Add tests in backend/tests/test_editor.py testing the new schema validation and endpoint routing (using FastAPI TestClient with mocked service layer)."
+  ],
+  "acceptance_criteria": [
+    "GET /api/videos/{video_id}/scenes returns 404 for nonexistent video and 200 with scene list for valid video",
+    "POST /api/videos/{video_id}/edit validates EditInstruction schema and returns new video_id on success",
+    "POST /api/videos/{video_id}/preview-frame returns base64-encoded JPEG frame data",
+    "All new schemas validate correctly (tested in test_editor.py)",
+    "Backend tests pass: pytest tests/ -v"
+  ],
+  "verification": [
+    "cd /projects/sandbox/abetVideos/backend && python -m pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

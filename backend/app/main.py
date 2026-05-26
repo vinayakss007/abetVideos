@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routers import health, videos
+from app.routers import editor, health, videos
 
 # Configure logging
 logging.basicConfig(
@@ -36,6 +36,7 @@ app.add_middleware(
 # Include routers
 app.include_router(health.router)
 app.include_router(videos.router)
+app.include_router(editor.router)
 
 
 @app.on_event("startup")

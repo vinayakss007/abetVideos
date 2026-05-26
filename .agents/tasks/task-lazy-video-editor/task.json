@@ -1,0 +1,7 @@
+{
+  "task_id": "task-lazy-video-editor",
+  "task_description": "Add a lazy-loaded video editor to the existing AI video generation app. The editor only loads into memory when the user navigates to /edit/:videoId, and fully unloads when navigated away. Features: scene reorder (drag-drop), scene trim, text overlay, media swap, audio controls, and frame preview. All heavy processing is server-side. Frontend is DOM-based with CSS positioning (no canvas/WebGL).",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

@@ -1,0 +1,42 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Frontend lazy-loaded video editor - Complete editor UI with React.lazy/Suspense, code-split into its own chunk, with scene reorder, trim, text overlay, media swap, audio controls, and frame preview. Fully unloads from memory when navigated away.",
+  "status": "pending",
+  "steps": [
+    "Add editor-related TypeScript types in frontend/src/types/index.ts: EditorScene (scene_number, thumbnail_url, duration_seconds, start_time, end_time, narration, media_info), TextOverlay (text, x, y, font_size, color, scene_number), EditInstruction (scene_order, trims, text_overlays, audio_levels, background_music_volume), PreviewFrame (base64 JPEG data, timestamp)",
+    "Add editor API functions in frontend/src/api/client.ts: getScenes(videoId), submitEdit(videoId, instructions), getPreviewFrame(videoId, timestamp), searchMedia(query) is already present",
+    "Create the editor page component at frontend/src/pages/EditorPage.tsx. This is a thin wrapper that is itself lazy-loaded. It receives videoId from route params, fetches scenes on mount, and renders the editor sub-components. On unmount (useEffect cleanup), it nullifies all state refs and large data arrays to ensure garbage collection.",
+    "Create frontend/src/components/editor/SceneTimeline.tsx - Horizontal scrollable list of scene thumbnails. Implements drag-and-drop reordering using native HTML5 drag events (no external library). Each scene card shows thumbnail, duration badge, and scene number. Reordering updates parent state.",
+    "Create frontend/src/components/editor/SceneTrimmer.tsx - For the selected scene, shows a range slider (two handles) to set start_time and end_time within the scene duration. Uses CSS-only styled range inputs. Displays current trim values in seconds.",
+    "Create frontend/src/components/editor/TextOverlayEditor.tsx - Panel to add/remove/edit text overlays for the selected scene. Each overlay has: text input, X/Y position sliders (0-100%), font size selector, color picker (simple preset palette). Renders a DOM-based preview showing overlay position on the scene thumbnail.",
+    "Create frontend/src/components/editor/MediaSwapPanel.tsx - For the selected scene, shows current media and a search input. Calls the existing searchMedia API. Displays results as a grid of thumbnail cards. Clicking one swaps it into the scene's media_info.",
+    "Create frontend/src/components/editor/AudioControls.tsx - Per-scene volume slider (0-200% range). Global background music volume slider. Simple visual volume level bars (CSS divs) as a waveform approximation.",
+    "Create frontend/src/components/editor/PreviewPanel.tsx - Shows the scene thumbnail for the selected scene. Has a timestamp scrubber that calls getPreviewFrame to load individual frames. Displays the frame as an <img> with base64 src. No canvas or WebGL.",
+    "Create the custom hook frontend/src/hooks/useEditor.ts - Manages all editor state: scenes array, selected scene index, edit instructions (order, trims, overlays, audio levels), dirty flag. Provides functions: reorderScenes, updateTrim, addOverlay/removeOverlay/updateOverlay, setAudioLevel, submitEdits (calls API). Uses useRef for large objects and sets them to null in cleanup.",
+    "Wire up lazy loading in frontend/src/App.tsx: import EditorPage with React.lazy(() => import('./pages/EditorPage')). Add route /edit/:videoId wrapped in Suspense with a loading spinner fallback. Keep it OUTSIDE the Layout route group or inside - match the existing pattern with Layout wrapping.",
+    "Ensure Vite code-splits the editor into a separate chunk. The dynamic import via React.lazy will automatically trigger this. Verify in build output that a separate chunk file is created for the editor module.",
+    "Add memory cleanup patterns: In EditorPage useEffect return, set all large state arrays to empty. In useEditor hook, return a cleanup function that nullifies refs. Use WeakRef or plain nullification for frame image data to allow GC when navigating away.",
+    "Add an 'Open Editor' button/link in the VideoPlayer component (frontend/src/components/VideoPlayer.tsx) that navigates to /edit/:videoId using React Router Link. This is the entry point - the editor loads ONLY when this is clicked."
+  ],
+  "acceptance_criteria": [
+    "Navigating to /edit/:videoId lazy-loads the editor chunk (visible as separate file in build output)",
+    "The editor shows a timeline of scene thumbnails that can be drag-reordered",
+    "Scene trim controls allow setting start/end time for selected scene",
+    "Text overlay editor allows adding text with position/style controls",
+    "Media swap panel searches and displays replacement media options",
+    "Audio controls show per-scene volume and background music sliders",
+    "Preview panel displays scene frame at selected timestamp",
+    "Submit button sends edit instructions to backend API",
+    "Navigating away from /edit unmounts all editor components and clears state",
+    "Frontend builds without errors: npm run build produces separate editor chunk",
+    "Frontend tests pass: npm test"
+  ],
+  "verification": [
+    "cd /projects/sandbox/abetVideos/frontend && npm run build 2>&1 | grep -i chunk",
+    "cd /projects/sandbox/abetVideos/frontend && npm run build",
+    "cd /projects/sandbox/abetVideos/frontend && npm test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

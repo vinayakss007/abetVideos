@@ -257,3 +257,88 @@ class GenerateFullRequest(BaseModel):
     audio_settings: Optional[AudioSettings] = Field(
         default=None, description="Optional audio processing settings"
     )
+
+
+# --- Editor schemas ---
+
+
+class TextOverlayInstruction(BaseModel):
+    """A text overlay to be applied to a specific scene."""
+
+    text: str = Field(..., description="Text content to overlay")
+    x: float = Field(..., ge=0, le=100, description="X position (0-100 percent)")
+    y: float = Field(..., ge=0, le=100, description="Y position (0-100 percent)")
+    font_size: int = Field(..., ge=8, le=200, description="Font size in pixels")
+    color: str = Field(..., description="Text color (e.g. '#FFFFFF')")
+    scene_number: int = Field(..., description="Scene number to apply overlay to")
+
+
+class SceneTrim(BaseModel):
+    """Trim boundaries for a scene."""
+
+    scene_number: int = Field(..., description="Scene number to trim")
+    start_time: float = Field(..., ge=0, description="Start time in seconds")
+    end_time: float = Field(..., ge=0, description="End time in seconds")
+
+
+class SceneAudioLevel(BaseModel):
+    """Audio volume adjustment for a scene."""
+
+    scene_number: int = Field(..., description="Scene number to adjust")
+    volume: float = Field(..., ge=0.0, le=2.0, description="Volume multiplier (0.0 to 2.0)")
+
+
+class EditInstruction(BaseModel):
+    """Full set of edit instructions for a video."""
+
+    scene_order: list[int] = Field(default_factory=list, description="Reordered scene numbers")
+    trims: list[SceneTrim] = Field(default_factory=list, description="Per-scene trim instructions")
+    text_overlays: list[TextOverlayInstruction] = Field(
+        default_factory=list, description="Text overlays to apply"
+    )
+    audio_levels: list[SceneAudioLevel] = Field(
+        default_factory=list, description="Per-scene audio level adjustments"
+    )
+    background_music_volume: float = Field(
+        default=0.15, ge=0.0, le=1.0, description="Background music volume (0.0 to 1.0)"
+    )
+
+
+class EditRequest(BaseModel):
+    """Request to apply edits to a video."""
+
+    instructions: EditInstruction
+
+
+class EditResponse(BaseModel):
+    """Response after applying edits to a video."""
+
+    video_id: str = Field(..., description="New video identifier")
+    video_path: str = Field(..., description="Path to the edited video")
+    duration_seconds: float = Field(..., description="Duration of edited video")
+
+
+class SceneMetadata(BaseModel):
+    """Metadata for a single scene in a video."""
+
+    scene_number: int = Field(..., description="Scene number")
+    thumbnail_url: str = Field(..., description="URL to scene thumbnail")
+    duration_seconds: float = Field(..., description="Scene duration in seconds")
+    narration: str = Field(..., description="Scene narration text")
+    visual_description: str = Field(..., description="Visual description")
+    media_url: Optional[str] = Field(None, description="Original media URL")
+
+
+class PreviewFrameRequest(BaseModel):
+    """Request to extract a preview frame at a given timestamp."""
+
+    timestamp: float = Field(..., ge=0, description="Timestamp in seconds")
+
+
+class PreviewFrameResponse(BaseModel):
+    """Response with an extracted preview frame."""
+
+    frame_data: str = Field(..., description="Base64-encoded JPEG frame data")
+    timestamp: float = Field(..., description="Actual timestamp extracted")
+    width: int = Field(..., description="Frame width in pixels")
+    height: int = Field(..., description="Frame height in pixels")

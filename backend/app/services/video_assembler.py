@@ -495,6 +495,42 @@ async def assemble_video(
 
     logger.info(f"Video assembled: {output_path} ({total_duration:.1f}s)")
 
+    # Save metadata JSON for the editor to use later
+    try:
+        import json as _json
+
+        meta_data = {
+            "video_id": video_id,
+            "script": script.model_dump(),
+            "tts_results": [r.model_dump() for r in tts_results],
+            "scene_media": [sm.model_dump() for sm in scene_media],
+            "format": format.value,
+            "duration_seconds": total_duration,
+            "scenes": [
+                {
+                    "scene_number": scene.scene_number,
+                    "duration_seconds": tts_map[scene.scene_number].duration_seconds
+                    if scene.scene_number in tts_map
+                    else scene.duration_seconds,
+                    "narration": scene.narration,
+                    "visual_description": scene.visual_description,
+                    "media_url": (
+                        media_map[scene.scene_number].media_items[0].url
+                        if scene.scene_number in media_map
+                        and media_map[scene.scene_number].media_items
+                        else None
+                    ),
+                }
+                for scene in script.scenes
+            ],
+        }
+        meta_path = output_path.parent / f"{video_id}_meta.json"
+        with open(meta_path, "w") as _mf:
+            _json.dump(meta_data, _mf, indent=2)
+        logger.info(f"Metadata saved: {meta_path}")
+    except Exception as e:
+        logger.warning(f"Failed to save metadata: {e}")
+
     return VideoResult(
         video_id=video_id,
         video_path=str(output_path),
