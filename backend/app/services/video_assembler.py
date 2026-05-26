@@ -21,6 +21,7 @@ from PIL import Image
 from app.config import settings
 from app.models.schemas import (
     AssembleVideoRequest,
+    AudioSettings,
     BitratePreset,
     CodecPreset,
     FPSOption,
@@ -34,6 +35,12 @@ from app.models.schemas import (
     VideoQualitySettings,
     VideoResult,
     VideoScript,
+)
+from app.services.audio_processor import (
+    download_audio,
+    generate_srt_subtitles,
+    mix_background_music,
+    normalize_audio_clips,
 )
 
 logger = logging.getLogger(__name__)
@@ -300,6 +307,7 @@ async def assemble_video(
     format: VideoFormat = VideoFormat.landscape,
     output_dir: Optional[str] = None,
     quality_settings: Optional[VideoQualitySettings] = None,
+    audio_settings: Optional[AudioSettings] = None,
 ) -> VideoResult:
     """Assemble the final video from script, audio, and media.
 
@@ -310,6 +318,7 @@ async def assemble_video(
         format: Video format (shorts or landscape).
         output_dir: Optional output directory override.
         quality_settings: Optional video quality settings for resolution, bitrate, etc.
+        audio_settings: Optional audio processing settings.
 
     Returns:
         VideoResult with path to the assembled video.
@@ -359,13 +368,63 @@ async def assemble_video(
     if not scene_clips:
         raise ValueError("No scene clips could be assembled")
 
+    # Determine crossfade duration
+    crossfade_duration = 0.5
+    if audio_settings is not None:
+        crossfade_duration = audio_settings.crossfade_duration
+
     # Concatenate all scenes
     final = None
+    subtitle_path: Optional[str] = None
     try:
         if len(scene_clips) > 1:
-            final = concatenate_videoclips(scene_clips, method="compose", padding=-0.5)
+            padding = -crossfade_duration if crossfade_duration > 0 else 0
+            final = concatenate_videoclips(scene_clips, method="compose", padding=padding)
         else:
             final = scene_clips[0]
+
+        # Audio post-processing
+        if audio_settings is not None:
+            # Normalize audio if enabled
+            if audio_settings.normalize_audio and final.audio is not None:
+                final = final.with_audio(
+                    final.audio.with_volume_scaled(0.9)
+                )
+
+            # Mix background music if URL provided
+            if audio_settings.background_music_url:
+                try:
+                    music_path = await download_audio(
+                        audio_settings.background_music_url,
+                        base_dir / "music",
+                    )
+                    # Compute scene audio timings for ducking
+                    scene_timings: list[tuple[float, float]] = []
+                    current_t = 0.0
+                    for tts in tts_results:
+                        scene_timings.append((current_t, current_t + tts.duration_seconds))
+                        current_t += tts.duration_seconds
+
+                    final = mix_background_music(
+                        final,
+                        music_path,
+                        audio_settings.background_music_volume,
+                        audio_settings.enable_ducking,
+                        scene_timings,
+                    )
+                except Exception as e:
+                    logger.warning(f"Background music mixing failed: {e}")
+
+            # Generate subtitles if enabled
+            if audio_settings.generate_subtitles:
+                srt_path = str(base_dir / "videos" / f"{video_id}.srt")
+                try:
+                    subtitle_path = generate_srt_subtitles(
+                        script, tts_results, srt_path
+                    )
+                except Exception as e:
+                    logger.warning(f"Subtitle generation failed: {e}")
+                    subtitle_path = None
 
         # Determine write parameters based on quality settings
         write_fps = 24
@@ -437,4 +496,5 @@ async def assemble_video(
         duration_seconds=total_duration,
         scenes_count=len(scene_clips),
         format=format,
+        subtitle_path=subtitle_path,
     )

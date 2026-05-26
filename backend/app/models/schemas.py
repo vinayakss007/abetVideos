@@ -92,6 +92,29 @@ class VideoQualitySettings(BaseModel):
     )
 
 
+class AudioSettings(BaseModel):
+    """Audio processing configuration settings."""
+
+    crossfade_duration: float = Field(
+        default=0.5, ge=0.0, le=2.0, description="Crossfade duration between scenes in seconds"
+    )
+    normalize_audio: bool = Field(
+        default=True, description="Normalize audio volume across all scenes"
+    )
+    background_music_url: Optional[str] = Field(
+        default=None, description="URL of background music file to mix in"
+    )
+    background_music_volume: float = Field(
+        default=0.15, ge=0.0, le=1.0, description="Background music volume (0.0 to 1.0)"
+    )
+    enable_ducking: bool = Field(
+        default=True, description="Auto-duck background music during narration"
+    )
+    generate_subtitles: bool = Field(
+        default=False, description="Generate SRT subtitle file alongside the video"
+    )
+
+
 class VideoRequest(BaseModel):
     """Request model for video generation."""
 
@@ -171,6 +194,9 @@ class VideoResult(BaseModel):
     duration_seconds: float = Field(..., description="Total video duration")
     scenes_count: int = Field(..., description="Number of scenes")
     format: VideoFormat = Field(..., description="Video format")
+    subtitle_path: Optional[str] = Field(
+        default=None, description="Path to generated SRT subtitle file"
+    )
 
 
 class GenerateScriptRequest(BaseModel):
@@ -205,6 +231,9 @@ class AssembleVideoRequest(BaseModel):
     quality_settings: Optional[VideoQualitySettings] = Field(
         default=None, description="Optional video quality settings"
     )
+    audio_settings: Optional[AudioSettings] = Field(
+        default=None, description="Optional audio processing settings"
+    )
 
 
 class GenerateFullRequest(BaseModel):
@@ -215,4 +244,7 @@ class GenerateFullRequest(BaseModel):
     style: VideoStyle = Field(default=VideoStyle.educational)
     quality_settings: Optional[VideoQualitySettings] = Field(
         default=None, description="Optional video quality settings"
+    )
+    audio_settings: Optional[AudioSettings] = Field(
+        default=None, description="Optional audio processing settings"
     )

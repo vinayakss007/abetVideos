@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.models.schemas import (
     AssembleVideoRequest,
+    AudioSettings,
     BitratePreset,
     CodecPreset,
     FPSOption,
@@ -392,3 +393,173 @@ class TestGenerateFullRequest:
         assert req.quality_settings is not None
         assert req.quality_settings.resolution == Resolution.res_4k
         assert req.quality_settings.fps == FPSOption.fps_60
+
+
+class TestAudioSettings:
+    def test_defaults(self):
+        audio = AudioSettings()
+        assert audio.crossfade_duration == 0.5
+        assert audio.normalize_audio is True
+        assert audio.background_music_url is None
+        assert audio.background_music_volume == 0.15
+        assert audio.enable_ducking is True
+        assert audio.generate_subtitles is False
+
+    def test_custom_crossfade_duration(self):
+        audio = AudioSettings(crossfade_duration=1.5)
+        assert audio.crossfade_duration == 1.5
+
+    def test_crossfade_duration_min(self):
+        audio = AudioSettings(crossfade_duration=0.0)
+        assert audio.crossfade_duration == 0.0
+
+    def test_crossfade_duration_max(self):
+        audio = AudioSettings(crossfade_duration=2.0)
+        assert audio.crossfade_duration == 2.0
+
+    def test_crossfade_duration_below_min(self):
+        with pytest.raises(ValidationError):
+            AudioSettings(crossfade_duration=-0.1)
+
+    def test_crossfade_duration_above_max(self):
+        with pytest.raises(ValidationError):
+            AudioSettings(crossfade_duration=2.5)
+
+    def test_background_music_volume_range(self):
+        audio = AudioSettings(background_music_volume=0.0)
+        assert audio.background_music_volume == 0.0
+        audio = AudioSettings(background_music_volume=1.0)
+        assert audio.background_music_volume == 1.0
+
+    def test_background_music_volume_below_min(self):
+        with pytest.raises(ValidationError):
+            AudioSettings(background_music_volume=-0.1)
+
+    def test_background_music_volume_above_max(self):
+        with pytest.raises(ValidationError):
+            AudioSettings(background_music_volume=1.5)
+
+    def test_with_background_music_url(self):
+        audio = AudioSettings(background_music_url="https://example.com/music.mp3")
+        assert audio.background_music_url == "https://example.com/music.mp3"
+
+    def test_all_boolean_flags(self):
+        audio = AudioSettings(
+            normalize_audio=False,
+            enable_ducking=False,
+            generate_subtitles=True,
+        )
+        assert audio.normalize_audio is False
+        assert audio.enable_ducking is False
+        assert audio.generate_subtitles is True
+
+    def test_full_custom_settings(self):
+        audio = AudioSettings(
+            crossfade_duration=1.0,
+            normalize_audio=False,
+            background_music_url="https://example.com/track.mp3",
+            background_music_volume=0.3,
+            enable_ducking=False,
+            generate_subtitles=True,
+        )
+        assert audio.crossfade_duration == 1.0
+        assert audio.normalize_audio is False
+        assert audio.background_music_url == "https://example.com/track.mp3"
+        assert audio.background_music_volume == 0.3
+        assert audio.enable_ducking is False
+        assert audio.generate_subtitles is True
+
+
+class TestVideoResultWithSubtitles:
+    def test_result_without_subtitles(self):
+        result = VideoResult(
+            video_id="abc123",
+            video_path="/output/videos/abc123.mp4",
+            duration_seconds=60.0,
+            scenes_count=5,
+            format=VideoFormat.landscape,
+        )
+        assert result.subtitle_path is None
+
+    def test_result_with_subtitles(self):
+        result = VideoResult(
+            video_id="abc123",
+            video_path="/output/videos/abc123.mp4",
+            duration_seconds=60.0,
+            scenes_count=5,
+            format=VideoFormat.landscape,
+            subtitle_path="/output/videos/abc123.srt",
+        )
+        assert result.subtitle_path == "/output/videos/abc123.srt"
+
+
+class TestAssembleVideoRequestWithAudio:
+    def test_with_audio_settings(self):
+        script = VideoScript(
+            title="Test",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Hello",
+                    visual_description="Test",
+                    duration_seconds=5.0,
+                )
+            ],
+            total_duration=5.0,
+        )
+        tts = [TTSResult(scene_number=1, audio_path="/tmp/audio.mp3", duration_seconds=5.0)]
+        media = [SceneMedia(scene_number=1, media_items=[])]
+        audio = AudioSettings(
+            crossfade_duration=1.0,
+            generate_subtitles=True,
+        )
+        req = AssembleVideoRequest(
+            script=script,
+            tts_results=tts,
+            scene_media=media,
+            audio_settings=audio,
+        )
+        assert req.audio_settings is not None
+        assert req.audio_settings.crossfade_duration == 1.0
+        assert req.audio_settings.generate_subtitles is True
+
+    def test_audio_settings_defaults_to_none(self):
+        script = VideoScript(
+            title="Test",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Hello",
+                    visual_description="Test",
+                    duration_seconds=5.0,
+                )
+            ],
+            total_duration=5.0,
+        )
+        tts = [TTSResult(scene_number=1, audio_path="/tmp/audio.mp3", duration_seconds=5.0)]
+        media = [SceneMedia(scene_number=1, media_items=[])]
+        req = AssembleVideoRequest(
+            script=script,
+            tts_results=tts,
+            scene_media=media,
+        )
+        assert req.audio_settings is None
+
+
+class TestGenerateFullRequestWithAudio:
+    def test_with_audio_settings(self):
+        audio = AudioSettings(
+            crossfade_duration=0.8,
+            normalize_audio=True,
+            generate_subtitles=True,
+        )
+        req = GenerateFullRequest(
+            topic="Space exploration",
+            audio_settings=audio,
+        )
+        assert req.audio_settings is not None
+        assert req.audio_settings.crossfade_duration == 0.8
+
+    def test_audio_settings_defaults_to_none(self):
+        req = GenerateFullRequest(topic="AI in healthcare")
+        assert req.audio_settings is None

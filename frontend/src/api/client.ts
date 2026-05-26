@@ -46,6 +46,7 @@ export async function assembleVideo(data: {
   scene_media: SceneMedia[];
   format?: string;
   quality_settings?: import('../types').VideoQualitySettings;
+  audio_settings?: import('../types').AudioSettings;
 }): Promise<VideoResult> {
   const response = await apiClient.post<VideoResult>('/videos/assemble', {
     script: data.script,
@@ -53,12 +54,17 @@ export async function assembleVideo(data: {
     scene_media: data.scene_media,
     format: data.format ?? 'landscape',
     quality_settings: data.quality_settings ?? null,
+    audio_settings: data.audio_settings ?? null,
   });
   return response.data;
 }
 
 export function getVideoDownloadUrl(videoId: string): string {
   return `/api/videos/${videoId}/download`;
+}
+
+export function getVideoSubtitlesUrl(videoId: string): string {
+  return `/api/videos/${videoId}/subtitles`;
 }
 
 export default apiClient;

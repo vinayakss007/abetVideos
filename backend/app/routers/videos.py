@@ -112,6 +112,7 @@ async def assemble_final_video(request: AssembleVideoRequest):
             scene_media=request.scene_media,
             format=request.format,
             quality_settings=request.quality_settings,
+            audio_settings=request.audio_settings,
         )
         return result
     except ValueError as e:
@@ -141,6 +142,26 @@ async def download_video(video_id: str = Path(pattern=r"^[a-f0-9]{12}$")):
         path=str(video_path),
         media_type="video/mp4",
         filename=f"{video_id}.mp4",
+    )
+
+
+@router.get("/{video_id}/subtitles")
+async def get_video_subtitles(video_id: str = Path(pattern=r"^[a-f0-9]{12}$")):
+    """Serve the generated SRT subtitle file for a video.
+
+    Returns the .srt file for the given video ID if it exists.
+    The video_id must be a 12-character lowercase hex string.
+    """
+    output_dir = FilePath(settings.output_dir) / "videos"
+    srt_path = output_dir / f"{video_id}.srt"
+
+    if not srt_path.exists():
+        raise HTTPException(status_code=404, detail="Subtitles not found")
+
+    return FileResponse(
+        path=str(srt_path),
+        media_type="application/x-subrip",
+        filename=f"{video_id}.srt",
     )
 
 
@@ -208,6 +229,7 @@ async def generate_full_video(request: GenerateFullRequest):
                 tts_results=tts_results,
                 scene_media=scene_media,
                 quality_settings=request.quality_settings,
+                audio_settings=request.audio_settings,
             )
             yield _sse_event(
                 "video_assembly",

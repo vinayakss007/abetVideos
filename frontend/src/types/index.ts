@@ -16,11 +16,21 @@ export interface VideoQualitySettings {
   output_format: 'mp4' | 'webm' | 'avi';
 }
 
+export interface AudioSettings {
+  crossfade_duration: number;
+  normalize_audio: boolean;
+  background_music_url?: string | null;
+  background_music_volume: number;
+  enable_ducking: boolean;
+  generate_subtitles: boolean;
+}
+
 export interface VideoRequest {
   topic: string;
   duration_minutes: number;
   style: string;
   quality_settings?: VideoQualitySettings;
+  audio_settings?: AudioSettings;
 }
 
 export interface ScriptScene {
@@ -63,6 +73,7 @@ export interface VideoResult {
   duration_seconds: number;
   scenes_count: number;
   format: string;
+  subtitle_path?: string | null;
 }
 
 export type GenerationStep =

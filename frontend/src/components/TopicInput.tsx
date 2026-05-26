@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Sparkles, Clock, Palette } from 'lucide-react';
-import type { VideoRequest, VideoQualitySettings } from '../types';
+import type { VideoRequest, VideoQualitySettings, AudioSettings as AudioSettingsType } from '../types';
 import QualitySettings from './QualitySettings';
+import AudioSettings from './AudioSettings';
 
 interface TopicInputProps {
   onSubmit: (request: VideoRequest) => void;
@@ -14,6 +15,15 @@ const DEFAULT_QUALITY_SETTINGS: VideoQualitySettings = {
   fps: '24',
   codec_preset: 'medium',
   output_format: 'mp4',
+};
+
+const DEFAULT_AUDIO_SETTINGS: AudioSettingsType = {
+  crossfade_duration: 0.5,
+  normalize_audio: true,
+  background_music_url: null,
+  background_music_volume: 0.15,
+  enable_ducking: true,
+  generate_subtitles: false,
 };
 
 const DURATION_OPTIONS = [
@@ -37,6 +47,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
   const [duration, setDuration] = useState(1);
   const [style, setStyle] = useState('educational');
   const [qualitySettings, setQualitySettings] = useState<VideoQualitySettings>(DEFAULT_QUALITY_SETTINGS);
+  const [audioSettings, setAudioSettings] = useState<AudioSettingsType>(DEFAULT_AUDIO_SETTINGS);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +57,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
       duration_minutes: duration,
       style,
       quality_settings: qualitySettings,
+      audio_settings: audioSettings,
     });
   };
 
@@ -113,6 +125,8 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
       </div>
 
       <QualitySettings settings={qualitySettings} onChange={setQualitySettings} />
+
+      <AudioSettings settings={audioSettings} onChange={setAudioSettings} />
 
       <button
         type="submit"
