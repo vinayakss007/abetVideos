@@ -1,0 +1,14 @@
+{
+  "task_id": "task-ai-video-generator",
+  "task_description": "Build a full-stack AI-powered video generation web application. Users provide a topic, AI generates a structured script, converts narration to speech via edge-tts, sources related GIFs/stock videos/images from free APIs (Pexels, Pixabay, Giphy), and assembles everything into a final short video (up to 10 minutes). Backend: FastAPI with OpenAI-compatible AI gateway. Frontend: React+Vite+TypeScript with multi-step wizard UI. All AI outputs are user-editable.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "pass",
+    "summary": "All 35 backend tests pass. All 8 frontend tests pass. Frontend builds cleanly (tsc + vite). Both Docker images build successfully. Security review issues fixed (path traversal, CORS). Performance issues addressed (thread-pool encoding, semaphore-limited concurrency, resource cleanup)."
+  }
+}

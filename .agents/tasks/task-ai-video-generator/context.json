@@ -1,0 +1,26 @@
+{
+  "project_type": "Full-stack AI video generation web app - Python FastAPI backend + React frontend",
+  "language": "Python (backend), TypeScript/React (frontend)",
+  "build_system": "pip/pyproject.toml for backend, npm/vite for frontend",
+  "test_framework": "pytest for backend, vitest for frontend",
+  "build_command": "Backend: pip install -e . | Frontend: cd frontend && npm run build",
+  "test_command": "Backend: pytest tests/ | Frontend: cd frontend && npm test",
+  "verification_instructions": "1. Install backend deps and run pytest. 2. Build frontend with npm run build. 3. Start backend server and confirm API endpoints respond. 4. Confirm end-to-end flow: topic -> script -> TTS -> video assembly.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "1. pyenv local 3.11.15. 2. python -m venv venv && source venv/bin/activate. 3. pip install -e '.[dev]'. 4. apt-get install -y ffmpeg. 5. cd frontend && npm install && npm run build. 6. Copy .env.example to .env and fill in API keys.",
+  "environment_constraints": "OPEN_INTERNET - full access to install packages, pull images, call external APIs. FFmpeg needs to be installed via apt. Python 3.11 via pyenv. Node.js 22 via nvm.",
+  "contribution_requirements": "Conventional commit messages (feat:, fix:, docs:). Feature branches. Clear documentation.",
+  "key_patterns": "OpenAI-compatible API gateway pattern supporting multiple LLM providers. All AI outputs are user-editable. Free APIs for media (Pexels, Pixabay, Giphy). edge-tts for free TTS. MoviePy + FFmpeg for video assembly.",
+  "relevant_files": [
+    "backend/app/main.py",
+    "backend/app/services/ai_gateway.py",
+    "backend/app/services/script_generator.py",
+    "backend/app/services/tts_service.py",
+    "backend/app/services/media_sourcer.py",
+    "backend/app/services/video_assembler.py",
+    "backend/app/routers/videos.py",
+    "frontend/src/App.tsx",
+    "frontend/src/pages/CreateVideo.tsx"
+  ],
+  "directory_structure": "backend/ - FastAPI application with services for each pipeline stage. frontend/ - React+Vite SPA for user interaction. Both at project root level."
+}
