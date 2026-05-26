@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Build the complete FastAPI backend with AI pipeline services: AI gateway (OpenAI-compatible multi-provider), script generation, text-to-speech (edge-tts), media sourcing (Pexels, Pixabay, Giphy), and video assembly (MoviePy/FFmpeg). Includes all API endpoints, project structure, dependencies, and configuration.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Set Python 3.11 via pyenv local 3.11.15 in the project root",
     "Install FFmpeg via apt-get install -y ffmpeg",
@@ -38,5 +38,5 @@
     "Start server and curl http://localhost:8000/api/health returns 200"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "MoviePy 2.x installed (not 1.x) - uses different import paths (from moviepy import X instead of from moviepy.editor). API methods changed: resize->resized, set_position->with_position, set_audio->with_audio, subclip->subclipped, no loop() method. FFmpeg installed via static binary (johnvansickle.com) since Amazon Linux 2023 lacks ffmpeg in yum repos. OpenAI client requires non-empty api_key to initialize - used 'not-configured' as placeholder when key is empty. pytest-asyncio 1.3.0 installed with asyncio_mode=auto in pyproject.toml."
 }
