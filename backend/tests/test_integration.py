@@ -299,7 +299,8 @@ class TestGenerateFullSSE:
             # Should have the initial event and an error event
             error_events = [e for e in events if e["step"] == "error"]
             assert len(error_events) == 1
-            assert "LLM API unavailable" in error_events[0]["message"]
+            assert "script_generation" in error_events[0]["message"]
+            assert "Exception" in error_events[0]["message"]
             assert error_events[0]["data"]["failed_stage"] == "script_generation"
 
     async def test_generate_full_validation(self):

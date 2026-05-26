@@ -3,13 +3,21 @@
 import logging
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
+import numpy as np
 from moviepy import AudioFileClip, CompositeAudioClip, concatenate_audioclips
 
 from app.models.schemas import TTSResult, VideoScript
 
 logger = logging.getLogger(__name__)
+
+# Maximum allowed download size for background music (50 MB)
+_MAX_MUSIC_DOWNLOAD_BYTES = 50 * 1024 * 1024
+
+# Allowed content-type prefixes for audio files
+_ALLOWED_AUDIO_CONTENT_TYPES = ("audio/", "application/octet-stream")
 
 
 def normalize_audio_clips(audio_clips: list) -> list:
@@ -27,14 +35,22 @@ def normalize_audio_clips(audio_clips: list) -> list:
     if not audio_clips:
         return audio_clips
 
-    target_max = 0.9
+    target_peak = 0.9
     normalized = []
 
     for clip in audio_clips:
         try:
-            # Use volumex to adjust volume; compute a basic gain factor
-            # MoviePy clips don't expose peak easily, so apply a uniform gain
-            normalized.append(clip.with_volume_scaled(target_max))
+            # Sample audio data to determine peak amplitude
+            fps = 22050
+            samples = clip.to_soundarray(fps=fps)
+            peak = np.max(np.abs(samples))
+            if peak > 0:
+                gain = target_peak / peak
+                # Clamp gain to avoid extreme amplification of very quiet clips
+                gain = min(gain, 5.0)
+                normalized.append(clip.with_volume_scaled(gain))
+            else:
+                normalized.append(clip)
         except Exception as e:
             logger.warning(f"Failed to normalize audio clip: {e}")
             normalized.append(clip)
@@ -45,21 +61,62 @@ def normalize_audio_clips(audio_clips: list) -> list:
 async def download_audio(url: str, output_dir: Path) -> str:
     """Download a background music file from a URL.
 
+    Validates the URL scheme (https only), checks Content-Type header,
+    and enforces a size limit to prevent SSRF and resource exhaustion.
+
     Args:
-        url: URL of the audio file to download.
+        url: URL of the audio file to download (must be https).
         output_dir: Directory to save the downloaded file.
 
     Returns:
         Local file path of the downloaded audio.
+
+    Raises:
+        ValueError: If the URL scheme is not https, content-type is
+            not audio, or size exceeds the limit.
     """
+    # Validate URL scheme to prevent SSRF (only allow https)
+    parsed = urlparse(url)
+    if parsed.scheme not in ("https",):
+        raise ValueError("Only https URLs are allowed for background music")
+    if not parsed.hostname:
+        raise ValueError("Invalid URL: no hostname")
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    filename = url.split("/")[-1].split("?")[0] or "background_music.mp3"
+    filename = parsed.path.split("/")[-1].split("?")[0] or "background_music.mp3"
     output_path = output_dir / filename
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.get(url)
-        response.raise_for_status()
-        output_path.write_bytes(response.content)
+        # Use a streaming request so we can check headers before downloading fully
+        async with client.stream("GET", url) as response:
+            response.raise_for_status()
+
+            # Check content-type
+            content_type = response.headers.get("content-type", "").lower()
+            if not any(content_type.startswith(ct) for ct in _ALLOWED_AUDIO_CONTENT_TYPES):
+                raise ValueError(
+                    "Invalid content type for background music: expected audio/*"
+                )
+
+            # Check content-length if provided
+            content_length = response.headers.get("content-length")
+            if content_length and int(content_length) > _MAX_MUSIC_DOWNLOAD_BYTES:
+                raise ValueError(
+                    "Background music file too large (max 50 MB)"
+                )
+
+            # Download with size limit enforcement
+            total_bytes = 0
+            chunks = []
+            async for chunk in response.aiter_bytes(chunk_size=65536):
+                total_bytes += len(chunk)
+                if total_bytes > _MAX_MUSIC_DOWNLOAD_BYTES:
+                    raise ValueError(
+                        "Background music file too large (max 50 MB)"
+                    )
+                chunks.append(chunk)
+
+        output_path.write_bytes(b"".join(chunks))
 
     logger.info(f"Downloaded background music to {output_path}")
     return str(output_path)
@@ -75,8 +132,8 @@ def mix_background_music(
     """Mix background music with the video's audio track.
 
     Loads the music file, loops it to match video duration, and reduces
-    its volume. If ducking is enabled, the music volume is lowered further
-    during narration segments.
+    its volume. If ducking is enabled, the music volume is lowered during
+    narration segments using time-varying gain based on scene_audio_timings.
 
     Args:
         final_clip: The assembled video clip with existing audio.
@@ -104,13 +161,22 @@ def mix_background_music(
         music = music.with_volume_scaled(volume)
 
         if enable_ducking and scene_audio_timings:
-            # Create ducked version with further reduced volume during narration
-            ducked_volume = volume * 0.3  # Reduce to 30% during narration
-            ducked_music = music.with_volume_scaled(ducked_volume / volume if volume > 0 else 0)
+            # Implement time-varying ducking: lower music during narration,
+            # raise it between narration segments.
+            ducking_ratio = 0.3  # Reduce to 30% during narration
 
-            # Build composite: use ducked music during narration, normal otherwise
-            # For simplicity, apply overall ducking since narration covers most of the video
-            music = ducked_music
+            def _ducking_filter(get_frame, t):
+                """Apply time-varying volume based on narration timings."""
+                frame = get_frame(t)
+                # Check if current time falls within any narration segment
+                for start, end in scene_audio_timings:
+                    if start <= t <= end:
+                        # During narration: duck the music
+                        return frame * ducking_ratio
+                # Between narration: full volume
+                return frame
+
+            music = music.transform(_ducking_filter)
 
         # Mix with existing audio
         original_audio = final_clip.audio
@@ -129,16 +195,20 @@ def generate_srt_subtitles(
     script: VideoScript,
     tts_results: list[TTSResult],
     output_path: str,
+    crossfade_duration: float = 0.0,
 ) -> str:
     """Generate an SRT subtitle file from script and TTS timing data.
 
-    Computes cumulative start times from TTS durations and writes
-    proper SRT format with timestamps for each scene's narration.
+    Computes cumulative start times from TTS durations, accounting for
+    crossfade overlap between scenes. When crossfade is applied, each
+    scene after the first overlaps with its predecessor, so timestamps
+    advance by (duration - crossfade) instead of the full duration.
 
     Args:
         script: The video script with narration text.
         tts_results: TTS results with duration info per scene.
         output_path: Path to write the .srt file.
+        crossfade_duration: Duration of crossfade overlap in seconds.
 
     Returns:
         Path to the generated .srt file.
@@ -149,7 +219,7 @@ def generate_srt_subtitles(
     current_time = 0.0
     subtitle_index = 1
 
-    for scene in script.scenes:
+    for i, scene in enumerate(script.scenes):
         tts = tts_map.get(scene.scene_number)
         if tts is None:
             continue
@@ -165,8 +235,8 @@ def generate_srt_subtitles(
             segments = [" ".join(words[:mid]), " ".join(words[mid:])]
             segment_duration = tts.duration_seconds / len(segments)
 
-            for i, segment in enumerate(segments):
-                seg_start = start_time + (i * segment_duration)
+            for j, segment in enumerate(segments):
+                seg_start = start_time + (j * segment_duration)
                 seg_end = seg_start + segment_duration
                 srt_entries.append(
                     _format_srt_entry(subtitle_index, seg_start, seg_end, segment)
@@ -178,7 +248,11 @@ def generate_srt_subtitles(
             )
             subtitle_index += 1
 
-        current_time = end_time
+        # Advance current_time, subtracting crossfade overlap for scenes after the first
+        if i == 0 or crossfade_duration <= 0:
+            current_time = end_time
+        else:
+            current_time = end_time - crossfade_duration
 
     srt_content = "\n".join(srt_entries)
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

@@ -366,6 +366,23 @@ class TestVideoQualitySettings:
         with pytest.raises(ValidationError):
             VideoQualitySettings(resolution="invalid")
 
+    def test_invalid_custom_bitrate_format(self):
+        """Test that invalid custom_bitrate values are rejected by regex."""
+        with pytest.raises(ValidationError):
+            VideoQualitySettings(bitrate=BitratePreset.custom, custom_bitrate="abc")
+        with pytest.raises(ValidationError):
+            VideoQualitySettings(bitrate=BitratePreset.custom, custom_bitrate="-1M")
+        with pytest.raises(ValidationError):
+            VideoQualitySettings(bitrate=BitratePreset.custom, custom_bitrate="6 M")
+
+    def test_valid_custom_bitrate_formats(self):
+        """Test that various valid bitrate formats are accepted."""
+        for value in ("6M", "500k", "10G", "4000", "8m"):
+            settings = VideoQualitySettings(
+                bitrate=BitratePreset.custom, custom_bitrate=value
+            )
+            assert settings.custom_bitrate == value
+
     def test_invalid_fps_value(self):
         with pytest.raises(ValidationError):
             VideoQualitySettings(fps="120")

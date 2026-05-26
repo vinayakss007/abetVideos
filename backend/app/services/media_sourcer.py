@@ -16,6 +16,9 @@ from app.models.schemas import MediaItem, MediaType, SceneMedia, VideoScript
 
 logger = logging.getLogger(__name__)
 
+# Module-level lock for cache manifest read-modify-write operations
+_cache_manifest_lock = asyncio.Lock()
+
 # API endpoints
 PEXELS_VIDEO_URL = "https://api.pexels.com/videos/search"
 PEXELS_PHOTO_URL = "https://api.pexels.com/v1/search"
@@ -489,7 +492,8 @@ async def download_media(
 ) -> MediaItem:
     """Download a media item to the local filesystem.
 
-    Uses file-based caching if enabled in settings.
+    Uses file-based caching with an asyncio.Lock to prevent race
+    conditions when multiple coroutines update the manifest concurrently.
 
     Args:
         item: The media item to download.
@@ -501,15 +505,16 @@ async def download_media(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check cache if enabled
+    # Check cache if enabled (under lock to avoid race conditions)
     if settings.media_cache_enabled:
-        manifest_path = _get_cache_manifest_path(output_dir)
-        manifest = _load_cache_manifest(manifest_path)
-        cached_path = manifest.get(item.url)
-        if cached_path and Path(cached_path).exists():
-            item.local_path = cached_path
-            logger.info(f"Cache hit for {item.url}")
-            return item
+        async with _cache_manifest_lock:
+            manifest_path = _get_cache_manifest_path(output_dir)
+            manifest = _load_cache_manifest(manifest_path)
+            cached_path = manifest.get(item.url)
+            if cached_path and Path(cached_path).exists():
+                item.local_path = cached_path
+                logger.info(f"Cache hit for {item.url}")
+                return item
 
     ext_map = {
         MediaType.video: ".mp4",
@@ -531,12 +536,13 @@ async def download_media(
         item.local_path = str(filepath)
         logger.info(f"Downloaded {item.media_type.value} from {item.source}: {filepath}")
 
-        # Update cache manifest
+        # Update cache manifest under lock
         if settings.media_cache_enabled:
-            manifest_path = _get_cache_manifest_path(output_dir)
-            manifest = _load_cache_manifest(manifest_path)
-            manifest[item.url] = str(filepath)
-            _save_cache_manifest(manifest_path, manifest)
+            async with _cache_manifest_lock:
+                manifest_path = _get_cache_manifest_path(output_dir)
+                manifest = _load_cache_manifest(manifest_path)
+                manifest[item.url] = str(filepath)
+                _save_cache_manifest(manifest_path, manifest)
 
     except Exception as e:
         logger.warning(f"Failed to download media from {item.url}: {e}")

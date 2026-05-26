@@ -35,6 +35,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 
 
+def _safe_error_detail(prefix: str, exc: Exception) -> str:
+    """Create a sanitized error detail message that does not leak internals.
+
+    Returns a generic message with the exception class name but not the
+    full message, which may contain file paths, API keys, or stack info.
+    """
+    return f"{prefix}: {type(exc).__name__}"
+
+
 @router.post("/generate-script", response_model=VideoScript)
 async def generate_video_script(request: GenerateScriptRequest):
     """Generate a video script from a topic using AI.
@@ -56,7 +65,7 @@ async def generate_video_script(request: GenerateScriptRequest):
         logger.error(f"Script generation failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Script generation failed: {str(e)}",
+            detail=_safe_error_detail("Script generation failed", e),
         )
 
 
@@ -77,7 +86,7 @@ async def generate_video_tts(request: GenerateTTSRequest):
         logger.error(f"TTS generation failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"TTS generation failed: {str(e)}",
+            detail=_safe_error_detail("TTS generation failed", e),
         )
 
 
@@ -98,7 +107,7 @@ async def source_video_media(request: SourceMediaRequest):
         logger.error(f"Media sourcing failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Media sourcing failed: {str(e)}",
+            detail=_safe_error_detail("Media sourcing failed", e),
         )
 
 
@@ -117,7 +126,7 @@ async def search_media(request: SearchMediaRequest):
         logger.error(f"Media search failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Media search failed: {str(e)}",
+            detail=_safe_error_detail("Media search failed", e),
         )
 
 
@@ -144,7 +153,7 @@ async def assemble_final_video(request: AssembleVideoRequest):
         logger.error(f"Video assembly failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Video assembly failed: {str(e)}",
+            detail=_safe_error_detail("Video assembly failed", e),
         )
 
 
@@ -272,7 +281,7 @@ async def generate_full_video(request: GenerateFullRequest):
             yield _sse_event(
                 "error",
                 -1,
-                f"Pipeline failed at stage '{current_stage}': {str(e)}",
+                f"Pipeline failed at stage '{current_stage}': {type(e).__name__}",
                 {"failed_stage": current_stage},
             )
 

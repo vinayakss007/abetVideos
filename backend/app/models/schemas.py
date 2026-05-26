@@ -81,7 +81,9 @@ class VideoQualitySettings(BaseModel):
         default=BitratePreset.medium, description="Bitrate preset"
     )
     custom_bitrate: Optional[str] = Field(
-        None, description="Custom bitrate value (e.g. '6M'), used when bitrate is 'custom'"
+        None,
+        pattern=r"^\d+[kKmMgG]?$",
+        description="Custom bitrate value (e.g. '6M'), used when bitrate is 'custom'",
     )
     fps: FPSOption = Field(default=FPSOption.fps_24, description="Frames per second")
     codec_preset: CodecPreset = Field(

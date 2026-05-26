@@ -385,11 +385,11 @@ async def assemble_video(
 
         # Audio post-processing
         if audio_settings is not None:
-            # Normalize audio if enabled
+            # Normalize audio if enabled - use peak-based normalization
             if audio_settings.normalize_audio and final.audio is not None:
-                final = final.with_audio(
-                    final.audio.with_volume_scaled(0.9)
-                )
+                normalized_clips = normalize_audio_clips([final.audio])
+                if normalized_clips:
+                    final = final.with_audio(normalized_clips[0])
 
             # Mix background music if URL provided
             if audio_settings.background_music_url:
@@ -398,12 +398,16 @@ async def assemble_video(
                         audio_settings.background_music_url,
                         base_dir / "music",
                     )
-                    # Compute scene audio timings for ducking
+                    # Compute scene audio timings for ducking, accounting for crossfade overlap
                     scene_timings: list[tuple[float, float]] = []
                     current_t = 0.0
-                    for tts in tts_results:
+                    for i, tts in enumerate(tts_results):
                         scene_timings.append((current_t, current_t + tts.duration_seconds))
-                        current_t += tts.duration_seconds
+                        # Subtract crossfade for scenes after the first
+                        if i == 0 or crossfade_duration <= 0:
+                            current_t += tts.duration_seconds
+                        else:
+                            current_t += tts.duration_seconds - crossfade_duration
 
                     final = mix_background_music(
                         final,
@@ -420,7 +424,8 @@ async def assemble_video(
                 srt_path = str(base_dir / "videos" / f"{video_id}.srt")
                 try:
                     subtitle_path = generate_srt_subtitles(
-                        script, tts_results, srt_path
+                        script, tts_results, srt_path,
+                        crossfade_duration=crossfade_duration,
                     )
                 except Exception as e:
                     logger.warning(f"Subtitle generation failed: {e}")
