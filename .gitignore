@@ -22,6 +22,7 @@ output/
 
 # Allow demo videos
 !demo/*.mp4
+!demo/*.webm
 
 # IDE
 .vscode/
