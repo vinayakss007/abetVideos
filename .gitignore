@@ -1,33 +1,30 @@
-# Virtual environments
-venv/
-.venv/
-env/
-
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.egg-info/
 dist/
-build/
-*.egg
+venv/
+.venv/
 
-# Environment files
+# Node
+node_modules/
+frontend/dist/
+
+# Environment
 .env
-backend/.env
+.env.local
 
-# Output directory
+# Output
 output/
+*.mp4
+*.mp3
+*.wav
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Node modules (for frontend)
-node_modules/

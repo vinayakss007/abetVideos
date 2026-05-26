@@ -1,15 +1,18 @@
 """Video generation API routes."""
 
+import json
 import logging
 import os
 from pathlib import Path
+from typing import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.config import settings
 from app.models.schemas import (
     AssembleVideoRequest,
+    GenerateFullRequest,
     GenerateScriptRequest,
     GenerateTTSRequest,
     SceneMedia,
@@ -136,4 +139,91 @@ async def download_video(video_id: str):
         path=str(video_path),
         media_type="video/mp4",
         filename=f"{video_id}.mp4",
+    )
+
+
+def _sse_event(step: str, progress: float, message: str, data: dict | None = None) -> str:
+    """Format an SSE event."""
+    payload = {"step": step, "progress": progress, "message": message}
+    if data is not None:
+        payload["data"] = data
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+@router.post("/generate-full")
+async def generate_full_video(request: GenerateFullRequest):
+    """Generate a complete video via the full pipeline with SSE progress updates.
+
+    Orchestrates: script generation -> TTS -> media sourcing -> video assembly.
+    Streams progress events via Server-Sent Events.
+    """
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        try:
+            # Step 1: Script generation
+            yield _sse_event("script_generation", 0, "Starting script generation...")
+            script = await generate_script(
+                topic=request.topic,
+                duration_minutes=request.duration_minutes,
+                style=request.style,
+            )
+            yield _sse_event(
+                "script_generation",
+                25,
+                f"Script generated: {script.title} ({len(script.scenes)} scenes)",
+                script.model_dump(),
+            )
+
+            # Step 2: TTS generation
+            yield _sse_event("tts_generation", 25, "Generating text-to-speech audio...")
+            tts_results = await generate_tts(script=script)
+            yield _sse_event(
+                "tts_generation",
+                50,
+                f"Audio generated for {len(tts_results)} scenes",
+                [r.model_dump() for r in tts_results],
+            )
+
+            # Step 3: Media sourcing
+            yield _sse_event("media_sourcing", 50, "Sourcing media for scenes...")
+            scene_media = await source_media(script=script)
+            yield _sse_event(
+                "media_sourcing",
+                75,
+                f"Media sourced for {len(scene_media)} scenes",
+                [sm.model_dump() for sm in scene_media],
+            )
+
+            # Step 4: Video assembly
+            yield _sse_event("video_assembly", 75, "Assembling final video...")
+            result = await assemble_video(
+                script=script,
+                tts_results=tts_results,
+                scene_media=scene_media,
+            )
+            yield _sse_event(
+                "video_assembly",
+                90,
+                "Video assembly complete",
+            )
+
+            # Step 5: Complete
+            yield _sse_event(
+                "complete",
+                100,
+                "Video generation complete!",
+                result.model_dump(),
+            )
+        except Exception as e:
+            logger.error(f"Full pipeline failed: {e}")
+            yield _sse_event("error", -1, f"Pipeline failed: {str(e)}")
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

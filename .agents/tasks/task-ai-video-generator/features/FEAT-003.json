@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Integration, end-to-end wiring, Docker setup, and final project documentation. Wire frontend to backend, add Docker Compose for easy deployment, and update README with actual usage instructions.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create a top-level docker-compose.yml with services: backend (Python FastAPI, port 8000), frontend (Vite dev or nginx for prod, port 3000)",
     "Create backend/Dockerfile - Python 3.11 slim, install ffmpeg, pip install deps, run uvicorn",

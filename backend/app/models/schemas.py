@@ -133,3 +133,11 @@ class AssembleVideoRequest(BaseModel):
     tts_results: list[TTSResult]
     scene_media: list[SceneMedia]
     format: VideoFormat = Field(default=VideoFormat.landscape)
+
+
+class GenerateFullRequest(BaseModel):
+    """Request for the full pipeline generation via SSE."""
+
+    topic: str = Field(..., min_length=3, max_length=500)
+    duration_minutes: float = Field(default=1.0, ge=0.5, le=10.0)
+    style: VideoStyle = Field(default=VideoStyle.educational)

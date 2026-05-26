@@ -47,6 +47,11 @@ async def startup_event():
     videos_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/static/videos", StaticFiles(directory=str(videos_dir)), name="videos")
 
+    # Serve frontend build at root if it exists (production single-container mode)
+    frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+    if frontend_dist.exists() and frontend_dist.is_dir():
+        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+
     logging.getLogger(__name__).info(
         f"Server started. Output directory: {output_path.resolve()}"
     )
