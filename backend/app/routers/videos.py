@@ -159,8 +159,10 @@ async def generate_full_video(request: GenerateFullRequest):
     """
 
     async def event_stream() -> AsyncGenerator[str, None]:
+        current_stage = "initialization"
         try:
             # Step 1: Script generation
+            current_stage = "script_generation"
             yield _sse_event("script_generation", 0, "Starting script generation...")
             script = await generate_script(
                 topic=request.topic,
@@ -175,6 +177,7 @@ async def generate_full_video(request: GenerateFullRequest):
             )
 
             # Step 2: TTS generation
+            current_stage = "tts_generation"
             yield _sse_event("tts_generation", 25, "Generating text-to-speech audio...")
             tts_results = await generate_tts(script=script)
             yield _sse_event(
@@ -185,6 +188,7 @@ async def generate_full_video(request: GenerateFullRequest):
             )
 
             # Step 3: Media sourcing
+            current_stage = "media_sourcing"
             yield _sse_event("media_sourcing", 50, "Sourcing media for scenes...")
             scene_media = await source_media(script=script)
             yield _sse_event(
@@ -195,6 +199,7 @@ async def generate_full_video(request: GenerateFullRequest):
             )
 
             # Step 4: Video assembly
+            current_stage = "video_assembly"
             yield _sse_event("video_assembly", 75, "Assembling final video...")
             result = await assemble_video(
                 script=script,
@@ -215,8 +220,13 @@ async def generate_full_video(request: GenerateFullRequest):
                 result.model_dump(),
             )
         except Exception as e:
-            logger.error(f"Full pipeline failed: {e}")
-            yield _sse_event("error", -1, f"Pipeline failed: {str(e)}")
+            logger.error(f"Full pipeline failed at stage '{current_stage}': {e}")
+            yield _sse_event(
+                "error",
+                -1,
+                f"Pipeline failed at stage '{current_stage}': {str(e)}",
+                {"failed_stage": current_stage},
+            )
 
     return StreamingResponse(
         event_stream(),

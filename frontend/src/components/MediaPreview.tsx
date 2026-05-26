@@ -1,21 +1,35 @@
 import { RefreshCw, Check, X, ArrowRight, Image, Film } from 'lucide-react';
-import type { MediaItem } from '../types';
+import type { MediaItem, SceneMedia } from '../types';
 
 interface MediaPreviewProps {
-  mediaItems: MediaItem[];
-  onUpdateMedia: (items: MediaItem[]) => void;
+  sceneMedia: SceneMedia[];
+  onUpdateMedia: (items: SceneMedia[]) => void;
   onConfirm: () => void;
   isLoading: boolean;
 }
 
-export default function MediaPreview({ mediaItems, onUpdateMedia, onConfirm, isLoading }: MediaPreviewProps) {
-  const removeItem = (index: number) => {
-    const updated = mediaItems.filter((_, i) => i !== index);
+export default function MediaPreview({ sceneMedia, onUpdateMedia, onConfirm, isLoading }: MediaPreviewProps) {
+  // Flatten all media items for display
+  const allItems: { item: MediaItem; sceneIndex: number; itemIndex: number }[] = [];
+  sceneMedia.forEach((scene, sceneIndex) => {
+    scene.media_items.forEach((item, itemIndex) => {
+      allItems.push({ item, sceneIndex, itemIndex });
+    });
+  });
+
+  const removeItem = (sceneIdx: number, itemIdx: number) => {
+    const updated = sceneMedia.map((scene, si) => {
+      if (si !== sceneIdx) return scene;
+      return {
+        ...scene,
+        media_items: scene.media_items.filter((_, ii) => ii !== itemIdx),
+      };
+    });
     onUpdateMedia(updated);
   };
 
-  const getMediaIcon = (type: string) => {
-    switch (type) {
+  const getMediaIcon = (mediaType: string) => {
+    switch (mediaType) {
       case 'video':
         return <Film className="w-4 h-4" />;
       default:
@@ -42,7 +56,7 @@ export default function MediaPreview({ mediaItems, onUpdateMedia, onConfirm, isL
         <div>
           <h3 className="text-lg font-semibold text-gray-100">Media Preview</h3>
           <p className="text-sm text-gray-400">
-            {mediaItems.length} media items found
+            {allItems.length} media items found across {sceneMedia.length} scenes
           </p>
         </div>
         <button
@@ -55,20 +69,20 @@ export default function MediaPreview({ mediaItems, onUpdateMedia, onConfirm, isL
         </button>
       </div>
 
-      {mediaItems.length === 0 ? (
+      {allItems.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <Image className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No media items to display</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mediaItems.map((item, index) => (
+          {allItems.map(({ item, sceneIndex, itemIndex }, idx) => (
             <div
-              key={index}
+              key={idx}
               className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden group"
             >
               <div className="aspect-video bg-gray-900 relative flex items-center justify-center">
-                {item.type === 'video' ? (
+                {item.media_type === 'video' ? (
                   <div className="flex flex-col items-center gap-2 text-gray-500">
                     <Film className="w-8 h-8" />
                     <span className="text-xs">Video</span>
@@ -86,7 +100,7 @@ export default function MediaPreview({ mediaItems, onUpdateMedia, onConfirm, isL
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     type="button"
-                    onClick={() => removeItem(index)}
+                    onClick={() => removeItem(sceneIndex, itemIndex)}
                     className="p-1.5 bg-red-600/80 hover:bg-red-600 rounded-lg text-white"
                     title="Remove"
                   >
@@ -103,14 +117,14 @@ export default function MediaPreview({ mediaItems, onUpdateMedia, onConfirm, isL
               </div>
               <div className="p-3 space-y-2">
                 <div className="flex items-center gap-2">
-                  {getMediaIcon(item.type)}
+                  {getMediaIcon(item.media_type)}
                   <span className="text-xs text-gray-400 truncate">{item.query}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${getSourceBadgeColor(item.source)}`}>
                     {item.source}
                   </span>
-                  <span className="text-xs text-gray-500 capitalize">{item.type}</span>
+                  <span className="text-xs text-gray-500 capitalize">{item.media_type}</span>
                 </div>
               </div>
             </div>

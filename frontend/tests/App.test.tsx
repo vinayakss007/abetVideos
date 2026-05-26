@@ -56,9 +56,10 @@ describe('TopicInput', () => {
       </BrowserRouter>
     );
     expect(screen.getByText('Educational')).toBeInTheDocument();
-    expect(screen.getByText('Entertainment')).toBeInTheDocument();
+    expect(screen.getByText('Entertaining')).toBeInTheDocument();
     expect(screen.getByText('News')).toBeInTheDocument();
-    expect(screen.getByText('Tutorial')).toBeInTheDocument();
+    expect(screen.getByText('Documentary')).toBeInTheDocument();
+    expect(screen.getByText('Motivational')).toBeInTheDocument();
   });
 
   it('shows loading state when isLoading is true', () => {
@@ -76,8 +77,9 @@ describe('VideoPlayer', () => {
     const mockResult = {
       video_path: '/output/test.mp4',
       video_id: 'test-123',
-      duration: 60,
+      duration_seconds: 60,
       scenes_count: 3,
+      format: 'landscape',
     };
     render(
       <BrowserRouter>

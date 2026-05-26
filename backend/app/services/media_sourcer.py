@@ -1,5 +1,6 @@
 """Media sourcing service - searches Pexels, Pixabay, and Giphy for media."""
 
+import asyncio
 import logging
 import os
 import uuid
@@ -295,6 +296,7 @@ async def source_media_for_scene(
     visual_description: str,
     scene_number: int,
     output_dir: Path,
+    client: httpx.AsyncClient,
     preferred_type: Optional[MediaType] = None,
 ) -> SceneMedia:
     """Source media for a single scene with fallback logic.
@@ -307,36 +309,35 @@ async def source_media_for_scene(
 
     media_items: list[MediaItem] = []
 
-    async with httpx.AsyncClient() as client:
-        # Try video sources first, then images, then GIFs
-        if preferred_type != MediaType.image:
-            # Try Pexels videos
-            items = await search_pexels_videos(keywords, client)
-            media_items.extend(items)
+    # Try video sources first, then images, then GIFs
+    if preferred_type != MediaType.image:
+        # Try Pexels videos
+        items = await search_pexels_videos(keywords, client)
+        media_items.extend(items)
 
-            # Try Pixabay videos
-            if not media_items:
-                items = await search_pixabay_videos(keywords, client)
-                media_items.extend(items)
-
-        # Try images
-        if not media_items or preferred_type == MediaType.image:
-            items = await search_pexels_photos(keywords, client)
-            media_items.extend(items)
-
-            if not media_items:
-                items = await search_pixabay_images(keywords, client)
-                media_items.extend(items)
-
-        # Try GIFs as fallback
+        # Try Pixabay videos
         if not media_items:
-            items = await search_giphy(keywords, client)
+            items = await search_pixabay_videos(keywords, client)
             media_items.extend(items)
 
-        # Download the best item (first result)
-        if media_items:
-            scene_dir = output_dir / f"scene_{scene_number:03d}"
-            media_items[0] = await download_media(media_items[0], scene_dir, client)
+    # Try images
+    if not media_items or preferred_type == MediaType.image:
+        items = await search_pexels_photos(keywords, client)
+        media_items.extend(items)
+
+        if not media_items:
+            items = await search_pixabay_images(keywords, client)
+            media_items.extend(items)
+
+    # Try GIFs as fallback
+    if not media_items:
+        items = await search_giphy(keywords, client)
+        media_items.extend(items)
+
+    # Download the best item (first result)
+    if media_items:
+        scene_dir = output_dir / f"scene_{scene_number:03d}"
+        media_items[0] = await download_media(media_items[0], scene_dir, client)
 
     return SceneMedia(scene_number=scene_number, media_items=media_items[:3])
 
@@ -346,7 +347,10 @@ async def source_media(
     preferred_type: Optional[MediaType] = None,
     output_dir: Optional[str] = None,
 ) -> list[SceneMedia]:
-    """Source media for all scenes in a script.
+    """Source media for all scenes in a script concurrently.
+
+    Uses asyncio.gather with a shared HTTP client to fetch media for all
+    scenes in parallel, reducing latency for longer videos.
 
     Args:
         script: The video script.
@@ -360,16 +364,18 @@ async def source_media(
     media_dir = base_dir / "media" / str(uuid.uuid4())[:8]
     media_dir.mkdir(parents=True, exist_ok=True)
 
-    results: list[SceneMedia] = []
-
-    for scene in script.scenes:
-        scene_media = await source_media_for_scene(
-            visual_description=scene.visual_description,
-            scene_number=scene.scene_number,
-            output_dir=media_dir,
-            preferred_type=preferred_type,
-        )
-        results.append(scene_media)
+    async with httpx.AsyncClient() as client:
+        tasks = [
+            source_media_for_scene(
+                visual_description=scene.visual_description,
+                scene_number=scene.scene_number,
+                output_dir=media_dir,
+                client=client,
+                preferred_type=preferred_type,
+            )
+            for scene in script.scenes
+        ]
+        results = await asyncio.gather(*tasks)
 
     logger.info(f"Media sourcing complete: {len(results)} scenes processed")
-    return results
+    return list(results)

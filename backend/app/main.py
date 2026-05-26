@@ -23,10 +23,12 @@ app = FastAPI(
 )
 
 # CORS middleware - allow all origins for development
+# Note: allow_credentials=True is invalid with wildcard origins per the Fetch spec,
+# so credentials are disabled when using allow_origins=["*"].
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

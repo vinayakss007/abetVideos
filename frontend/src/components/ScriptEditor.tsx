@@ -18,6 +18,7 @@ export default function ScriptEditor({ script, onUpdate, onConfirm, isLoading }:
 
   const addScene = () => {
     const newScene: ScriptScene = {
+      scene_number: script.scenes.length + 1,
       narration: '',
       visual_description: '',
       duration_seconds: 10,

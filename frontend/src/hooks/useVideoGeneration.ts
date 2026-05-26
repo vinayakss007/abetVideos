@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import type {
   VideoRequest,
   VideoScript,
-  MediaItem,
+  SceneMedia,
   TTSResult,
   VideoResult,
   GenerationStep,
@@ -19,7 +19,7 @@ export interface SSEProgress {
 interface UseVideoGenerationReturn {
   step: GenerationStep;
   script: VideoScript | null;
-  mediaItems: MediaItem[];
+  sceneMedia: SceneMedia[];
   audioResults: TTSResult[];
   videoResult: VideoResult | null;
   error: string | null;
@@ -30,14 +30,14 @@ interface UseVideoGenerationReturn {
   handleConfirmMedia: () => Promise<void>;
   handleRetry: () => void;
   generateFull: (request: VideoRequest) => Promise<void>;
-  setMediaItems: (items: MediaItem[]) => void;
+  setSceneMedia: (items: SceneMedia[]) => void;
   setStep: (step: GenerationStep) => void;
 }
 
 export function useVideoGeneration(): UseVideoGenerationReturn {
   const [step, setStep] = useState<GenerationStep>('idle');
   const [script, setScript] = useState<VideoScript | null>(null);
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [sceneMedia, setSceneMedia] = useState<SceneMedia[]>([]);
   const [audioResults, setAudioResults] = useState<TTSResult[]>([]);
   const [videoResult, setVideoResult] = useState<VideoResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +68,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
       setStep('sourcing_media');
       setError(null);
       const media = await api.sourceMedia(script);
-      setMediaItems(media);
+      setSceneMedia(media);
       setStep('editing_media');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to source media';
@@ -88,8 +88,8 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
       setStep('assembling');
       const result = await api.assembleVideo({
         script,
-        audio_files: audio,
-        media_items: mediaItems,
+        tts_results: audio,
+        scene_media: sceneMedia,
       });
       setVideoResult(result);
       setStep('complete');
@@ -98,7 +98,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
       setError(message);
       setStep('error');
     }
-  }, [script, mediaItems]);
+  }, [script, sceneMedia]);
 
   const generateFull = useCallback(async (request: VideoRequest) => {
     try {
@@ -192,7 +192,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
     setError(null);
     setStep('idle');
     setScript(null);
-    setMediaItems([]);
+    setSceneMedia([]);
     setAudioResults([]);
     setVideoResult(null);
     setSSEProgress(null);
@@ -201,7 +201,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
   return {
     step,
     script,
-    mediaItems,
+    sceneMedia,
     audioResults,
     videoResult,
     error,
@@ -212,7 +212,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
     handleConfirmMedia,
     handleRetry,
     generateFull,
-    setMediaItems,
+    setSceneMedia,
     setStep,
   };
 }

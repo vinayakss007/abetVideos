@@ -5,6 +5,7 @@ export interface VideoRequest {
 }
 
 export interface ScriptScene {
+  scene_number: number;
   narration: string;
   visual_description: string;
   duration_seconds: number;
@@ -18,22 +19,31 @@ export interface VideoScript {
 
 export interface MediaItem {
   url: string;
-  type: 'image' | 'gif' | 'video';
+  media_type: 'image' | 'gif' | 'video';
   source: string;
   query: string;
   local_path?: string;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface SceneMedia {
+  scene_number: number;
+  media_items: MediaItem[];
 }
 
 export interface TTSResult {
+  scene_number: number;
   audio_path: string;
-  duration: number;
+  duration_seconds: number;
 }
 
 export interface VideoResult {
   video_path: string;
   video_id: string;
-  duration: number;
+  duration_seconds: number;
   scenes_count: number;
+  format: string;
 }
 
 export type GenerationStep =

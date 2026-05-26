@@ -30,7 +30,7 @@ export default function CreateVideo() {
   const {
     step,
     script,
-    mediaItems,
+    sceneMedia,
     videoResult,
     error,
     handleGenerateScript,
@@ -38,7 +38,7 @@ export default function CreateVideo() {
     handleConfirmScript,
     handleConfirmMedia,
     handleRetry,
-    setMediaItems,
+    setSceneMedia,
   } = useVideoGeneration();
 
   const currentStepNumber = getStepNumber(step);
@@ -115,8 +115,8 @@ export default function CreateVideo() {
 
         {step === 'editing_media' && (
           <MediaPreview
-            mediaItems={mediaItems}
-            onUpdateMedia={setMediaItems}
+            sceneMedia={sceneMedia}
+            onUpdateMedia={setSceneMedia}
             onConfirm={handleConfirmMedia}
             isLoading={false}
           />

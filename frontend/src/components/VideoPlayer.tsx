@@ -18,7 +18,7 @@ export default function VideoPlayer({ result, onReset }: VideoPlayerProps) {
         </div>
         <h3 className="text-xl font-semibold text-gray-100">Video Generated!</h3>
         <p className="text-sm text-gray-400 mt-1">
-          {result.scenes_count} scenes - {Math.round(result.duration)}s duration
+          {result.scenes_count} scenes - {Math.round(result.duration_seconds)}s duration
         </p>
       </div>
 

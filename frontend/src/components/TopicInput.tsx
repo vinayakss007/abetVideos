@@ -17,9 +17,10 @@ const DURATION_OPTIONS = [
 
 const STYLE_OPTIONS = [
   { value: 'educational', label: 'Educational', icon: '📚' },
-  { value: 'entertainment', label: 'Entertainment', icon: '🎬' },
+  { value: 'entertaining', label: 'Entertaining', icon: '🎬' },
   { value: 'news', label: 'News', icon: '📰' },
-  { value: 'tutorial', label: 'Tutorial', icon: '💡' },
+  { value: 'documentary', label: 'Documentary', icon: '🎥' },
+  { value: 'motivational', label: 'Motivational', icon: '💡' },
 ];
 
 export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
@@ -77,7 +78,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
           <Palette className="w-4 h-4" />
           Video Style
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {STYLE_OPTIONS.map((opt) => (
             <button
               key={opt.value}

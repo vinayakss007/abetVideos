@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shutil
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -210,6 +211,50 @@ def _build_scene_clip(
         return _create_fallback_scene(audio_path, width, height)
 
 
+def _cleanup_intermediate_files(
+    tts_results: list[TTSResult], scene_media: list[SceneMedia]
+) -> None:
+    """Remove intermediate TTS audio and downloaded media files after assembly.
+
+    Only removes files that exist and logs warnings on failure rather than
+    raising exceptions, since the video has already been assembled.
+    """
+    # Collect directories to remove (parent dirs of scene media)
+    dirs_to_remove: set[str] = set()
+
+    # Remove TTS audio files
+    for tts in tts_results:
+        try:
+            audio_path = Path(tts.audio_path)
+            if audio_path.exists():
+                audio_path.unlink()
+                # Track parent dir for potential removal
+                dirs_to_remove.add(str(audio_path.parent))
+        except OSError as e:
+            logger.warning(f"Failed to remove TTS file {tts.audio_path}: {e}")
+
+    # Remove downloaded media files
+    for sm in scene_media:
+        for item in sm.media_items:
+            if item.local_path:
+                try:
+                    media_path = Path(item.local_path)
+                    if media_path.exists():
+                        media_path.unlink()
+                        dirs_to_remove.add(str(media_path.parent))
+                except OSError as e:
+                    logger.warning(f"Failed to remove media file {item.local_path}: {e}")
+
+    # Remove empty parent directories
+    for dir_path in dirs_to_remove:
+        try:
+            p = Path(dir_path)
+            if p.exists() and p.is_dir() and not any(p.iterdir()):
+                p.rmdir()
+        except OSError:
+            pass  # Directory not empty or already removed
+
+
 async def assemble_video(
     script: VideoScript,
     tts_results: list[TTSResult],
@@ -292,6 +337,9 @@ async def assemble_video(
     final.close()
     for clip in scene_clips:
         clip.close()
+
+    # Clean up intermediate files (media and TTS audio)
+    _cleanup_intermediate_files(tts_results, scene_media)
 
     logger.info(f"Video assembled: {output_path} ({total_duration:.1f}s)")
 
