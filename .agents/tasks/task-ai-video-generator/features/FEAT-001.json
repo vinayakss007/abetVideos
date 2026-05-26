@@ -1,0 +1,42 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Build the complete FastAPI backend with AI pipeline services: AI gateway (OpenAI-compatible multi-provider), script generation, text-to-speech (edge-tts), media sourcing (Pexels, Pixabay, Giphy), and video assembly (MoviePy/FFmpeg). Includes all API endpoints, project structure, dependencies, and configuration.",
+  "status": "in_progress",
+  "steps": [
+    "Set Python 3.11 via pyenv local 3.11.15 in the project root",
+    "Install FFmpeg via apt-get install -y ffmpeg",
+    "Create backend/ directory structure: backend/app/__init__.py, backend/app/main.py, backend/app/config.py, backend/app/models/, backend/app/routers/, backend/app/services/",
+    "Create backend/pyproject.toml with dependencies: fastapi, uvicorn, httpx, openai, edge-tts, moviepy, pillow, python-dotenv, pydantic, aiofiles, pytest, pytest-asyncio",
+    "Create backend/app/config.py with Settings using pydantic-settings loading from .env: OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, PEXELS_API_KEY, PIXABAY_API_KEY, GIPHY_API_KEY, OUTPUT_DIR, TTS_VOICE",
+    "Create backend/.env.example with all required environment variables documented",
+    "Create backend/app/models/schemas.py with Pydantic models: VideoRequest (topic, duration, style), ScriptScene (narration, visual_description, duration), VideoScript (title, scenes list, total_duration), MediaItem (url, type, source, query), TTSResult (audio_path, duration), VideoResult (video_path, duration, scenes_count)",
+    "Create backend/app/services/ai_gateway.py - OpenAI-compatible gateway that supports multiple providers (OpenAI, Groq, Ollama, any OpenAI-compatible endpoint). Uses the openai Python library with configurable base_url and api_key. Includes streaming support, retry logic, and provider switching.",
+    "Create backend/app/services/script_generator.py - Uses ai_gateway to generate structured video scripts. Takes a topic and desired duration, crafts a system prompt that instructs the LLM to output a JSON VideoScript with scenes, narration text, visual descriptions, and timing. Parses the LLM JSON response into VideoScript model.",
+    "Create backend/app/services/tts_service.py - Uses edge-tts (Microsoft Edge free TTS) to convert narration text to audio. Generates one audio file per scene, returns paths and durations. Supports voice selection.",
+    "Create backend/app/services/media_sourcer.py - Searches for relevant GIFs and stock videos/images based on scene visual descriptions. Queries Pexels API (videos + photos), Pixabay API (videos + images), and Giphy API (GIFs). Downloads media files locally for video assembly. Implements fallback: if one API fails or has no results, tries the next.",
+    "Create backend/app/services/video_assembler.py - Uses MoviePy to combine audio (TTS) with visual media (downloaded images/videos/GIFs) into a final video. For each scene: overlays the scene's media on a background, adds the audio track, applies simple transitions (crossfade). Concatenates all scenes into the final output video with configurable resolution (1080x1920 for shorts, 1920x1080 for landscape).",
+    "Create backend/app/routers/videos.py with endpoints: POST /api/videos/generate-script (takes topic, returns editable script), POST /api/videos/generate-tts (takes script, returns audio info), POST /api/videos/source-media (takes script, returns media items), POST /api/videos/assemble (takes script + audio + media, assembles final video), GET /api/videos/{video_id}/status, GET /api/videos/{video_id}/download",
+    "Create backend/app/routers/health.py with GET /api/health endpoint",
+    "Create backend/app/main.py - FastAPI app with CORS middleware (allow all origins for dev), include routers, static file serving for generated videos, startup/shutdown events",
+    "Create backend/tests/test_script_generator.py with tests for script generation (mock the AI gateway, verify output structure)",
+    "Create backend/tests/test_schemas.py with tests for Pydantic model validation",
+    "Create a top-level run.sh script that installs deps and starts the backend server"
+  ],
+  "acceptance_criteria": [
+    "Running 'pip install -e backend/' succeeds without errors",
+    "Running 'pytest backend/tests/' passes all tests",
+    "Starting the server with 'uvicorn backend.app.main:app' responds to GET /api/health with 200 OK",
+    "POST /api/videos/generate-script with a topic returns a structured VideoScript JSON (when API key is configured)",
+    "The ai_gateway service correctly initializes with configurable base_url supporting any OpenAI-compatible provider",
+    "edge-tts integration generates audio files from text",
+    "Media sourcer can query Pexels/Pixabay/Giphy APIs and download results",
+    "Video assembler produces a valid MP4 file from audio + media inputs"
+  ],
+  "verification": [
+    "pip install -e 'backend/[dev]' && pytest backend/tests/ -v",
+    "Start server and curl http://localhost:8000/api/health returns 200"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

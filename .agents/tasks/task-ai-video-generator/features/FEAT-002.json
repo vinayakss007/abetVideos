@@ -1,0 +1,44 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Build the React frontend with Vite + TypeScript providing a complete UI for the video creation pipeline: topic input, script editor, media preview, video generation progress, and video playback/download.",
+  "status": "pending",
+  "steps": [
+    "Create frontend/ directory using Vite + React + TypeScript template: npm create vite@latest frontend -- --template react-ts",
+    "Install additional dependencies: axios, react-router-dom, tailwindcss, @tailwindcss/vite, lucide-react (icons), react-hot-toast",
+    "Configure Tailwind CSS v4 with @tailwindcss/vite plugin",
+    "Configure Vite proxy to forward /api requests to backend at localhost:8000",
+    "Create frontend/src/api/client.ts - Axios client with base URL /api, error handling interceptors",
+    "Create frontend/src/types/index.ts - TypeScript interfaces matching backend Pydantic models: VideoRequest, ScriptScene, VideoScript, MediaItem, VideoResult",
+    "Create frontend/src/components/Layout.tsx - Main layout with header (app name, nav), content area, footer",
+    "Create frontend/src/pages/HomePage.tsx - Landing page with hero section explaining the app, 'Create Video' CTA button",
+    "Create frontend/src/pages/CreateVideo.tsx - Multi-step wizard page with steps: 1) Topic Input, 2) Script Review/Edit, 3) Media Preview, 4) Generation Progress, 5) Result/Download",
+    "Create frontend/src/components/TopicInput.tsx - Form with topic text input, duration selector (30s, 1min, 3min, 5min, 10min), style selector (educational, entertainment, news, tutorial), generate button",
+    "Create frontend/src/components/ScriptEditor.tsx - Displays generated script with editable fields for each scene: narration text (textarea), visual description (textarea), duration (number input). Add/remove scene buttons. Save changes button.",
+    "Create frontend/src/components/MediaPreview.tsx - Grid display of sourced media (images, GIFs, video thumbnails) for each scene. Allow user to accept/reject/refresh individual media items.",
+    "Create frontend/src/components/GenerationProgress.tsx - Progress UI showing current step (TTS generation, media download, video assembly), progress bar, status messages, elapsed time",
+    "Create frontend/src/components/VideoPlayer.tsx - Video player component with the final generated video, download button, share options",
+    "Create frontend/src/App.tsx - Router setup with routes: / (HomePage), /create (CreateVideo), /videos/:id (view completed video)",
+    "Create frontend/src/hooks/useVideoGeneration.ts - Custom hook managing the multi-step generation state machine, API calls for each step, error handling",
+    "Add responsive design - ensure the UI works on both desktop and mobile",
+    "Create frontend/tests/App.test.tsx - Basic render tests for main components"
+  ],
+  "acceptance_criteria": [
+    "Running 'cd frontend && npm install && npm run build' succeeds without errors",
+    "The app renders at localhost:5173 with the landing page",
+    "Navigating to /create shows the multi-step video creation wizard",
+    "Topic input form validates required fields before submission",
+    "Script editor displays scenes with editable narration and visual description fields",
+    "Media preview shows a grid of images/GIFs/videos for each scene",
+    "Generation progress component shows step-by-step progress",
+    "Final video player component renders with download button",
+    "All TypeScript types are properly defined and used (no 'any' types in core logic)"
+  ],
+  "verification": [
+    "cd frontend && npm install && npm run build (zero errors)",
+    "cd frontend && npm test (passes)",
+    "cd frontend && npx tsc --noEmit (no type errors)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

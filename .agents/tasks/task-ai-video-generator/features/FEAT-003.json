@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Integration, end-to-end wiring, Docker setup, and final project documentation. Wire frontend to backend, add Docker Compose for easy deployment, and update README with actual usage instructions.",
+  "status": "pending",
+  "steps": [
+    "Create a top-level docker-compose.yml with services: backend (Python FastAPI, port 8000), frontend (Vite dev or nginx for prod, port 3000)",
+    "Create backend/Dockerfile - Python 3.11 slim, install ffmpeg, pip install deps, run uvicorn",
+    "Create frontend/Dockerfile - Node 22 alpine, build the React app, serve with nginx",
+    "Create a top-level .env.example with all required environment variables for both services",
+    "Ensure backend serves the frontend build as static files in production mode (backend/app/main.py serves frontend/dist/ at root if it exists)",
+    "Add a backend endpoint POST /api/videos/generate-full that orchestrates the entire pipeline (script -> TTS -> media -> assembly) as a single call with progress updates via Server-Sent Events (SSE)",
+    "Update frontend useVideoGeneration hook to support both step-by-step mode and full-pipeline mode with SSE progress streaming",
+    "Create backend/tests/test_integration.py - Integration test that mocks external APIs and tests the full pipeline flow",
+    "Update the top-level README.md with: project overview, architecture diagram (text), quick start guide (docker-compose up), manual setup instructions, environment variables reference, API documentation summary, screenshots/usage guide",
+    "Create a .gitignore at project root covering: __pycache__, .env, node_modules, dist, venv, output/, *.mp4, *.mp3, *.wav"
+  ],
+  "acceptance_criteria": [
+    "docker-compose.yml is valid YAML and defines both services correctly",
+    "Backend Dockerfile builds successfully: docker build -t abet-backend backend/",
+    "Frontend Dockerfile builds successfully: docker build -t abet-frontend frontend/",
+    ".gitignore covers all generated/temporary files",
+    "The SSE endpoint streams progress events for each pipeline stage",
+    "README.md contains complete setup and usage documentation",
+    "pytest backend/tests/test_integration.py passes"
+  ],
+  "verification": [
+    "docker build -t abet-backend backend/",
+    "docker build -t abet-frontend frontend/",
+    "pytest backend/tests/ -v (all tests pass including integration)",
+    "cd frontend && npm run build (still builds after changes)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

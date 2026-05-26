@@ -1,0 +1,7 @@
+{
+  "task_id": "task-ai-video-generator",
+  "task_description": "Build a full-stack AI-powered video generation web application. Users provide a topic, AI generates a structured script, converts narration to speech via edge-tts, sources related GIFs/stock videos/images from free APIs (Pexels, Pixabay, Giphy), and assembles everything into a final short video (up to 10 minutes). Backend: FastAPI with OpenAI-compatible AI gateway. Frontend: React+Vite+TypeScript with multi-step wizard UI. All AI outputs are user-editable.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

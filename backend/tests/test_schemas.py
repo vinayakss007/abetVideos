@@ -1,0 +1,248 @@
+"""Tests for Pydantic model validation."""
+
+import pytest
+from pydantic import ValidationError
+
+from app.models.schemas import (
+    AssembleVideoRequest,
+    GenerateScriptRequest,
+    GenerateTTSRequest,
+    MediaItem,
+    MediaType,
+    SceneMedia,
+    ScriptScene,
+    SourceMediaRequest,
+    TTSResult,
+    VideoFormat,
+    VideoRequest,
+    VideoResult,
+    VideoScript,
+    VideoStyle,
+)
+
+
+class TestVideoRequest:
+    def test_valid_request(self):
+        req = VideoRequest(topic="Python programming", duration_minutes=2.0)
+        assert req.topic == "Python programming"
+        assert req.duration_minutes == 2.0
+        assert req.style == VideoStyle.educational
+        assert req.format == VideoFormat.landscape
+
+    def test_minimum_topic_length(self):
+        with pytest.raises(ValidationError):
+            VideoRequest(topic="ab")
+
+    def test_duration_range(self):
+        with pytest.raises(ValidationError):
+            VideoRequest(topic="Valid topic", duration_minutes=0.1)
+        with pytest.raises(ValidationError):
+            VideoRequest(topic="Valid topic", duration_minutes=15.0)
+
+    def test_all_styles(self):
+        for style in VideoStyle:
+            req = VideoRequest(topic="Test topic", style=style)
+            assert req.style == style
+
+    def test_all_formats(self):
+        for fmt in VideoFormat:
+            req = VideoRequest(topic="Test topic", format=fmt)
+            assert req.format == fmt
+
+
+class TestScriptScene:
+    def test_valid_scene(self):
+        scene = ScriptScene(
+            scene_number=1,
+            narration="Welcome to this video about Python.",
+            visual_description="A laptop screen showing Python code",
+            duration_seconds=10.0,
+        )
+        assert scene.scene_number == 1
+        assert scene.duration_seconds == 10.0
+
+    def test_duration_minimum(self):
+        with pytest.raises(ValidationError):
+            ScriptScene(
+                scene_number=1,
+                narration="Short",
+                visual_description="Test",
+                duration_seconds=1.0,
+            )
+
+    def test_duration_maximum(self):
+        with pytest.raises(ValidationError):
+            ScriptScene(
+                scene_number=1,
+                narration="Long scene",
+                visual_description="Test",
+                duration_seconds=90.0,
+            )
+
+
+class TestVideoScript:
+    def test_valid_script(self):
+        script = VideoScript(
+            title="Python Tutorial",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Welcome!",
+                    visual_description="Intro screen",
+                    duration_seconds=5.0,
+                ),
+                ScriptScene(
+                    scene_number=2,
+                    narration="Let's learn Python.",
+                    visual_description="Code editor",
+                    duration_seconds=15.0,
+                ),
+            ],
+            total_duration=20.0,
+        )
+        assert script.title == "Python Tutorial"
+        assert len(script.scenes) == 2
+        assert script.total_duration == 20.0
+
+    def test_empty_scenes_fails(self):
+        with pytest.raises(ValidationError):
+            VideoScript(title="Test", scenes=[], total_duration=0)
+
+
+class TestMediaItem:
+    def test_valid_media_item(self):
+        item = MediaItem(
+            url="https://example.com/video.mp4",
+            media_type=MediaType.video,
+            source="pexels",
+            query="nature",
+        )
+        assert item.url == "https://example.com/video.mp4"
+        assert item.media_type == MediaType.video
+        assert item.local_path is None
+
+    def test_with_local_path(self):
+        item = MediaItem(
+            url="https://example.com/img.jpg",
+            media_type=MediaType.image,
+            source="pixabay",
+            query="city skyline",
+            local_path="/tmp/img123.jpg",
+        )
+        assert item.local_path == "/tmp/img123.jpg"
+
+
+class TestTTSResult:
+    def test_valid_result(self):
+        result = TTSResult(
+            scene_number=1,
+            audio_path="/output/audio/scene_001.mp3",
+            duration_seconds=8.5,
+        )
+        assert result.scene_number == 1
+        assert result.duration_seconds == 8.5
+
+
+class TestVideoResult:
+    def test_valid_result(self):
+        result = VideoResult(
+            video_id="abc123",
+            video_path="/output/videos/abc123.mp4",
+            duration_seconds=60.0,
+            scenes_count=5,
+            format=VideoFormat.landscape,
+        )
+        assert result.video_id == "abc123"
+        assert result.scenes_count == 5
+
+
+class TestGenerateScriptRequest:
+    def test_valid_request(self):
+        req = GenerateScriptRequest(topic="AI in healthcare")
+        assert req.topic == "AI in healthcare"
+        assert req.duration_minutes == 1.0
+        assert req.style == VideoStyle.educational
+
+    def test_custom_values(self):
+        req = GenerateScriptRequest(
+            topic="Space exploration",
+            duration_minutes=5.0,
+            style=VideoStyle.documentary,
+        )
+        assert req.duration_minutes == 5.0
+        assert req.style == VideoStyle.documentary
+
+
+class TestGenerateTTSRequest:
+    def test_valid_request(self):
+        script = VideoScript(
+            title="Test",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Hello",
+                    visual_description="Test visual",
+                    duration_seconds=5.0,
+                )
+            ],
+            total_duration=5.0,
+        )
+        req = GenerateTTSRequest(script=script)
+        assert req.voice is None
+
+
+class TestSourceMediaRequest:
+    def test_valid_request(self):
+        script = VideoScript(
+            title="Test",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Hello",
+                    visual_description="Mountains at sunset",
+                    duration_seconds=5.0,
+                )
+            ],
+            total_duration=5.0,
+        )
+        req = SourceMediaRequest(script=script, preferred_type=MediaType.video)
+        assert req.preferred_type == MediaType.video
+
+
+class TestAssembleVideoRequest:
+    def test_valid_request(self):
+        script = VideoScript(
+            title="Test",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Hello",
+                    visual_description="Test",
+                    duration_seconds=5.0,
+                )
+            ],
+            total_duration=5.0,
+        )
+        tts = [TTSResult(scene_number=1, audio_path="/tmp/audio.mp3", duration_seconds=5.0)]
+        media = [
+            SceneMedia(
+                scene_number=1,
+                media_items=[
+                    MediaItem(
+                        url="https://example.com/vid.mp4",
+                        media_type=MediaType.video,
+                        source="pexels",
+                        query="test",
+                        local_path="/tmp/vid.mp4",
+                    )
+                ],
+            )
+        ]
+        req = AssembleVideoRequest(
+            script=script,
+            tts_results=tts,
+            scene_media=media,
+            format=VideoFormat.shorts,
+        )
+        assert req.format == VideoFormat.shorts
+        assert len(req.tts_results) == 1

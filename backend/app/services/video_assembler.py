@@ -1,0 +1,304 @@
+"""Video assembly service using MoviePy and FFmpeg."""
+
+import logging
+import os
+import uuid
+from pathlib import Path
+from typing import Optional
+
+from moviepy import (
+    AudioFileClip,
+    ColorClip,
+    CompositeVideoClip,
+    ImageClip,
+    VideoFileClip,
+    concatenate_videoclips,
+)
+from PIL import Image
+
+from app.config import settings
+from app.models.schemas import (
+    AssembleVideoRequest,
+    MediaItem,
+    MediaType,
+    SceneMedia,
+    TTSResult,
+    VideoFormat,
+    VideoResult,
+    VideoScript,
+)
+
+logger = logging.getLogger(__name__)
+
+# Resolution presets
+RESOLUTIONS = {
+    VideoFormat.shorts: (1080, 1920),  # Vertical 9:16
+    VideoFormat.landscape: (1920, 1080),  # Horizontal 16:9
+}
+
+
+def _get_resolution(format: VideoFormat) -> tuple[int, int]:
+    """Get width, height for a video format."""
+    return RESOLUTIONS[format]
+
+
+def _create_background_clip(
+    duration: float, width: int, height: int
+) -> ColorClip:
+    """Create a black background clip."""
+    return ColorClip(size=(width, height), color=(0, 0, 0), duration=duration)
+
+
+def _loop_clip(clip, target_duration: float):
+    """Loop a clip to match target duration by concatenating copies."""
+    if clip.duration >= target_duration:
+        return clip.subclipped(0, target_duration)
+
+    clips = []
+    total = 0.0
+    while total < target_duration:
+        clips.append(clip)
+        total += clip.duration
+
+    looped = concatenate_videoclips(clips, method="chain")
+    return looped.subclipped(0, target_duration)
+
+
+def _create_image_scene(
+    image_path: str, audio_path: str, width: int, height: int
+) -> CompositeVideoClip:
+    """Create a scene from an image and audio.
+
+    The image is displayed for the duration of the audio, resized to fit
+    the target resolution while maintaining aspect ratio.
+    """
+    audio = AudioFileClip(audio_path)
+    duration = audio.duration
+
+    # Load and resize image
+    img_clip = ImageClip(image_path, duration=duration)
+
+    # Resize to fit within target resolution while maintaining aspect ratio
+    img_w, img_h = img_clip.size
+    scale_w = width / img_w
+    scale_h = height / img_h
+    scale = min(scale_w, scale_h)
+    img_clip = img_clip.resized(scale)
+
+    # Center the image on a background
+    bg = _create_background_clip(duration, width, height)
+    scene = CompositeVideoClip(
+        [bg, img_clip.with_position("center")],
+        size=(width, height),
+    )
+
+    scene = scene.with_audio(audio)
+    return scene
+
+
+def _create_video_scene(
+    video_path: str, audio_path: str, width: int, height: int
+) -> CompositeVideoClip:
+    """Create a scene from a video clip and audio.
+
+    The video is trimmed or looped to match the audio duration,
+    then resized to fit the target resolution.
+    """
+    audio = AudioFileClip(audio_path)
+    duration = audio.duration
+
+    video = VideoFileClip(video_path)
+
+    # Loop or trim video to match audio duration
+    video = _loop_clip(video, duration)
+
+    # Resize to fit target resolution
+    vid_w, vid_h = video.size
+    scale_w = width / vid_w
+    scale_h = height / vid_h
+    scale = min(scale_w, scale_h)
+    video = video.resized(scale)
+
+    # Center on background
+    bg = _create_background_clip(duration, width, height)
+    scene = CompositeVideoClip(
+        [bg, video.with_position("center")],
+        size=(width, height),
+    )
+
+    scene = scene.with_audio(audio)
+    return scene
+
+
+def _create_gif_scene(
+    gif_path: str, audio_path: str, width: int, height: int
+) -> CompositeVideoClip:
+    """Create a scene from a GIF and audio.
+
+    The GIF is looped to match audio duration.
+    """
+    audio = AudioFileClip(audio_path)
+    duration = audio.duration
+
+    # Load GIF as video clip
+    gif_clip = VideoFileClip(gif_path)
+
+    # Loop to match audio duration
+    gif_clip = _loop_clip(gif_clip, duration)
+
+    # Resize
+    gif_w, gif_h = gif_clip.size
+    scale_w = width / gif_w
+    scale_h = height / gif_h
+    scale = min(scale_w, scale_h)
+    gif_clip = gif_clip.resized(scale)
+
+    # Center on background
+    bg = _create_background_clip(duration, width, height)
+    scene = CompositeVideoClip(
+        [bg, gif_clip.with_position("center")],
+        size=(width, height),
+    )
+
+    scene = scene.with_audio(audio)
+    return scene
+
+
+def _create_fallback_scene(
+    audio_path: str, width: int, height: int
+) -> ColorClip:
+    """Create a fallback scene with just a colored background and audio."""
+    audio = AudioFileClip(audio_path)
+    duration = audio.duration
+
+    bg = ColorClip(size=(width, height), color=(20, 20, 30), duration=duration)
+    bg = bg.with_audio(audio)
+    return bg
+
+
+def _build_scene_clip(
+    media: Optional[MediaItem],
+    audio_path: str,
+    width: int,
+    height: int,
+):
+    """Build a scene clip from media and audio.
+
+    Dispatches to the appropriate scene builder based on media type.
+    Falls back to a plain background if no media is available.
+    """
+    if media is None or media.local_path is None:
+        return _create_fallback_scene(audio_path, width, height)
+
+    local_path = media.local_path
+
+    if not os.path.exists(local_path):
+        logger.warning(f"Media file not found: {local_path}, using fallback")
+        return _create_fallback_scene(audio_path, width, height)
+
+    try:
+        if media.media_type == MediaType.video:
+            return _create_video_scene(local_path, audio_path, width, height)
+        elif media.media_type == MediaType.image:
+            return _create_image_scene(local_path, audio_path, width, height)
+        elif media.media_type == MediaType.gif:
+            return _create_gif_scene(local_path, audio_path, width, height)
+        else:
+            return _create_fallback_scene(audio_path, width, height)
+    except Exception as e:
+        logger.warning(f"Error processing media {local_path}: {e}, using fallback")
+        return _create_fallback_scene(audio_path, width, height)
+
+
+async def assemble_video(
+    script: VideoScript,
+    tts_results: list[TTSResult],
+    scene_media: list[SceneMedia],
+    format: VideoFormat = VideoFormat.landscape,
+    output_dir: Optional[str] = None,
+) -> VideoResult:
+    """Assemble the final video from script, audio, and media.
+
+    Args:
+        script: The video script.
+        tts_results: TTS audio results per scene.
+        scene_media: Media items per scene.
+        format: Video format (shorts or landscape).
+        output_dir: Optional output directory override.
+
+    Returns:
+        VideoResult with path to the assembled video.
+    """
+    width, height = _get_resolution(format)
+    base_dir = Path(output_dir or settings.output_dir)
+    video_id = uuid.uuid4().hex[:12]
+    output_path = base_dir / "videos" / f"{video_id}.mp4"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info(
+        f"Assembling video: {len(script.scenes)} scenes, "
+        f"format: {format.value} ({width}x{height})"
+    )
+
+    # Build a lookup for TTS results and media by scene number
+    tts_map = {r.scene_number: r for r in tts_results}
+    media_map = {m.scene_number: m for m in scene_media}
+
+    scene_clips = []
+
+    for scene in script.scenes:
+        tts = tts_map.get(scene.scene_number)
+        if tts is None:
+            logger.warning(f"No TTS for scene {scene.scene_number}, skipping")
+            continue
+
+        # Get the first available media item for this scene
+        scene_media_data = media_map.get(scene.scene_number)
+        media_item = None
+        if scene_media_data and scene_media_data.media_items:
+            # Find the first item with a local path
+            for item in scene_media_data.media_items:
+                if item.local_path and os.path.exists(item.local_path):
+                    media_item = item
+                    break
+
+        clip = _build_scene_clip(media_item, tts.audio_path, width, height)
+        scene_clips.append(clip)
+
+    if not scene_clips:
+        raise ValueError("No scene clips could be assembled")
+
+    # Concatenate all scenes
+    if len(scene_clips) > 1:
+        final = concatenate_videoclips(scene_clips, method="compose", padding=-0.5)
+    else:
+        final = scene_clips[0]
+
+    # Write final video
+    logger.info(f"Writing video to {output_path}...")
+    final.write_videofile(
+        str(output_path),
+        fps=24,
+        codec="libx264",
+        audio_codec="aac",
+        preset="medium",
+        threads=2,
+        logger=None,
+    )
+
+    total_duration = final.duration if hasattr(final, "duration") else 0
+
+    # Clean up
+    final.close()
+    for clip in scene_clips:
+        clip.close()
+
+    logger.info(f"Video assembled: {output_path} ({total_duration:.1f}s)")
+
+    return VideoResult(
+        video_id=video_id,
+        video_path=str(output_path),
+        duration_seconds=total_duration,
+        scenes_count=len(scene_clips),
+        format=format,
+    )
