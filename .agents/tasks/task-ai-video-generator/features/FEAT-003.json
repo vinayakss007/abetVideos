@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Integration, end-to-end wiring, Docker setup, and final project documentation. Wire frontend to backend, add Docker Compose for easy deployment, and update README with actual usage instructions.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create a top-level docker-compose.yml with services: backend (Python FastAPI, port 8000), frontend (Vite dev or nginx for prod, port 3000)",
     "Create backend/Dockerfile - Python 3.11 slim, install ffmpeg, pip install deps, run uvicorn",
@@ -31,5 +31,5 @@
     "cd frontend && npm run build (still builds after changes)"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 35 backend tests pass. Frontend builds cleanly with TypeScript. Both Docker images (abet-backend, abet-frontend) build successfully. Health endpoint returns {status: ok} not {status: healthy}. The SSE endpoint uses StreamingResponse with text/event-stream content type. pytest-asyncio mode=auto works well for integration tests using httpx ASGITransport."
 }
