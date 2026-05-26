@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class VideoStyle(str, Enum):
@@ -280,12 +280,26 @@ class SceneTrim(BaseModel):
     start_time: float = Field(..., ge=0, description="Start time in seconds")
     end_time: float = Field(..., ge=0, description="End time in seconds")
 
+    @model_validator(mode="after")
+    def end_time_gte_start_time(self) -> "SceneTrim":
+        if self.end_time < self.start_time:
+            raise ValueError("end_time must be greater than or equal to start_time")
+        return self
+
 
 class SceneAudioLevel(BaseModel):
     """Audio volume adjustment for a scene."""
 
     scene_number: int = Field(..., description="Scene number to adjust")
     volume: float = Field(..., ge=0.0, le=2.0, description="Volume multiplier (0.0 to 2.0)")
+
+
+class MediaReplacement(BaseModel):
+    """A media replacement for a specific scene."""
+
+    scene_number: int = Field(..., description="Scene number to replace media for")
+    media_url: str = Field(..., description="New media URL")
+    media_type: str = Field(default="video", description="Type of the new media (video, image, gif)")
 
 
 class EditInstruction(BaseModel):
@@ -301,6 +315,9 @@ class EditInstruction(BaseModel):
     )
     background_music_volume: float = Field(
         default=0.15, ge=0.0, le=1.0, description="Background music volume (0.0 to 1.0)"
+    )
+    media_replacements: list[MediaReplacement] = Field(
+        default_factory=list, description="Per-scene media replacements"
     )
 
 

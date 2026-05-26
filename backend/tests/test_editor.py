@@ -13,6 +13,7 @@ from app.models.schemas import (
     EditInstruction,
     EditRequest,
     EditResponse,
+    MediaReplacement,
     PreviewFrameRequest,
     PreviewFrameResponse,
     SceneAudioLevel,
@@ -87,6 +88,10 @@ class TestSceneTrim:
         assert trim.start_time == 0.0
         assert trim.end_time == 0.0
 
+    def test_end_time_less_than_start_time(self):
+        with pytest.raises(ValidationError):
+            SceneTrim(scene_number=1, start_time=5.0, end_time=2.0)
+
 
 class TestSceneAudioLevel:
     def test_valid_audio_level(self):
@@ -121,12 +126,15 @@ class TestEditInstruction:
             ],
             audio_levels=[SceneAudioLevel(scene_number=2, volume=0.8)],
             background_music_volume=0.2,
+            media_replacements=[MediaReplacement(scene_number=1, media_url="https://example.com/new.mp4", media_type="video")],
         )
         assert instr.scene_order == [3, 1, 2]
         assert len(instr.trims) == 1
         assert len(instr.text_overlays) == 1
         assert len(instr.audio_levels) == 1
         assert instr.background_music_volume == 0.2
+        assert len(instr.media_replacements) == 1
+        assert instr.media_replacements[0].media_url == "https://example.com/new.mp4"
 
     def test_defaults(self):
         instr = EditInstruction()
@@ -135,12 +143,27 @@ class TestEditInstruction:
         assert instr.text_overlays == []
         assert instr.audio_levels == []
         assert instr.background_music_volume == 0.15
+        assert instr.media_replacements == []
 
     def test_background_music_volume_range(self):
         with pytest.raises(ValidationError):
             EditInstruction(background_music_volume=1.5)
         with pytest.raises(ValidationError):
             EditInstruction(background_music_volume=-0.1)
+
+
+class TestMediaReplacement:
+    def test_valid_replacement(self):
+        replacement = MediaReplacement(
+            scene_number=1, media_url="https://example.com/new.mp4", media_type="video"
+        )
+        assert replacement.scene_number == 1
+        assert replacement.media_url == "https://example.com/new.mp4"
+        assert replacement.media_type == "video"
+
+    def test_default_media_type(self):
+        replacement = MediaReplacement(scene_number=2, media_url="https://example.com/img.jpg")
+        assert replacement.media_type == "video"
 
 
 class TestEditRequest:

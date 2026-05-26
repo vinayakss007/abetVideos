@@ -115,12 +115,19 @@ export interface SceneAudioLevel {
   volume: number; // 0.0 to 2.0
 }
 
+export interface MediaReplacement {
+  scene_number: number;
+  media_url: string;
+  media_type: string;
+}
+
 export interface EditInstruction {
   scene_order: number[];
   trims: SceneTrim[];
   text_overlays: TextOverlayInstruction[];
   audio_levels: SceneAudioLevel[];
   background_music_volume: number;
+  media_replacements: MediaReplacement[];
 }
 
 export interface SceneMetadata {

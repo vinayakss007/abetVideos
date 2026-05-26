@@ -22,6 +22,10 @@ export default function EditorPage() {
   useEffect(() => {
     if (!videoId) return;
 
+    // Reset immediately and synchronously before starting the new load
+    // to prevent stale state from previous videoId interfering.
+    editor.reset();
+
     let cancelled = false;
 
     async function loadScenes() {
@@ -47,7 +51,6 @@ export default function EditorPage() {
 
     return () => {
       cancelled = true;
-      editor.reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
@@ -67,6 +70,17 @@ export default function EditorPage() {
   const selectedAudioLevel = selectedScene
     ? editor.editInstructions.audio_levels.find((a) => a.scene_number === selectedScene.scene_number)
     : undefined;
+
+  // Compute the absolute start offset for the selected scene in the source video
+  const sceneStartOffset = (() => {
+    if (!selectedScene) return 0;
+    let offset = 0;
+    for (const s of editor.scenes) {
+      if (s.scene_number === selectedScene.scene_number) break;
+      offset += s.duration_seconds;
+    }
+    return offset;
+  })();
 
   if (isLoading) {
     return (
@@ -160,19 +174,15 @@ export default function EditorPage() {
           <MediaSwapPanel
             sceneNumber={selectedScene.scene_number}
             currentMediaUrl={selectedScene.media_url}
-            onSwap={(url) => {
-              const updatedScenes = editor.scenes.map((s) =>
-                s.scene_number === selectedScene.scene_number
-                  ? { ...s, media_url: url }
-                  : s
-              );
-              editor.setScenes(updatedScenes);
+            onSwap={(url, mediaType) => {
+              editor.swapMedia(selectedScene.scene_number, url, mediaType);
             }}
           />
           <PreviewPanel
             videoId={videoId}
             sceneNumber={selectedScene.scene_number}
             scene={selectedScene}
+            sceneStartOffset={sceneStartOffset}
           />
         </div>
       )}

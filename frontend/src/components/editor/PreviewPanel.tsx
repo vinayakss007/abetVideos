@@ -7,9 +7,10 @@ interface PreviewPanelProps {
   videoId: string;
   sceneNumber: number;
   scene: SceneMetadata;
+  sceneStartOffset: number;
 }
 
-export default function PreviewPanel({ videoId, sceneNumber, scene }: PreviewPanelProps) {
+export default function PreviewPanel({ videoId, sceneNumber, scene, sceneStartOffset }: PreviewPanelProps) {
   const [timestamp, setTimestamp] = useState(0);
   const [frame, setFrame] = useState<PreviewFrame | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +18,8 @@ export default function PreviewPanel({ videoId, sceneNumber, scene }: PreviewPan
   const handleLoadFrame = async () => {
     setIsLoading(true);
     try {
-      const result = await getPreviewFrame(videoId, timestamp);
+      const absoluteTimestamp = sceneStartOffset + timestamp;
+      const result = await getPreviewFrame(videoId, absoluteTimestamp);
       setFrame(result);
     } catch {
       setFrame(null);

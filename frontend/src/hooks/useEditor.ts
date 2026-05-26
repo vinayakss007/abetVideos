@@ -5,6 +5,7 @@ import type {
   SceneTrim,
   TextOverlayInstruction,
   SceneAudioLevel,
+  MediaReplacement,
 } from '../types';
 import { submitEdit } from '../api/client';
 
@@ -23,6 +24,7 @@ interface UseEditorReturn {
   updateOverlay: (index: number, overlay: TextOverlayInstruction) => void;
   setAudioLevel: (sceneNumber: number, volume: number) => void;
   setBgMusicVolume: (volume: number) => void;
+  swapMedia: (sceneNumber: number, mediaUrl: string, mediaType: string) => void;
   submitEdits: (videoId: string) => Promise<{ video_id: string; video_path: string; duration_seconds: number } | null>;
   reset: () => void;
 }
@@ -34,6 +36,7 @@ function createDefaultInstructions(): EditInstruction {
     text_overlays: [],
     audio_levels: [],
     background_music_volume: 0.3,
+    media_replacements: [],
   };
 }
 
@@ -126,6 +129,20 @@ export function useEditor(): UseEditorReturn {
     setIsDirty(true);
   }, []);
 
+  const swapMedia = useCallback((sceneNumber: number, mediaUrl: string, mediaType: string) => {
+    setEditInstructions((prev) => {
+      const replacements = prev.media_replacements.filter((r) => r.scene_number !== sceneNumber);
+      const newReplacement: MediaReplacement = { scene_number: sceneNumber, media_url: mediaUrl, media_type: mediaType };
+      return { ...prev, media_replacements: [...replacements, newReplacement] };
+    });
+    setScenesState((prev) =>
+      prev.map((s) =>
+        s.scene_number === sceneNumber ? { ...s, media_url: mediaUrl } : s
+      )
+    );
+    setIsDirty(true);
+  }, []);
+
   const submitEdits = useCallback(async (videoId: string) => {
     setIsSubmitting(true);
     try {
@@ -166,6 +183,7 @@ export function useEditor(): UseEditorReturn {
     updateOverlay,
     setAudioLevel,
     setBgMusicVolume,
+    swapMedia,
     submitEdits,
     reset,
   };

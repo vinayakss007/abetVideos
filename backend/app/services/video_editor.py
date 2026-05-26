@@ -194,6 +194,9 @@ def apply_edits(
             for overlay in instructions.text_overlays:
                 overlay_map.setdefault(overlay.scene_number, []).append(overlay)
 
+            # Build media replacement lookup
+            media_replacement_map = {r.scene_number: r for r in instructions.media_replacements}
+
             for scene_num in scene_order:
                 # Find scene boundaries (scene_number is 1-indexed)
                 idx = scene_num - 1
@@ -219,6 +222,28 @@ def apply_edits(
                     continue
 
                 scene_clip = clip.subclipped(scene_start, scene_end)
+
+                # Apply media replacement if specified
+                replacement = media_replacement_map.get(scene_num)
+                if replacement:
+                    replacement_path = Path(replacement.media_url)
+                    # Only replace if the media URL is a local file path that exists
+                    if replacement_path.exists():
+                        try:
+                            duration_needed = scene_end - scene_start
+                            replacement_clip = VideoFileClip(str(replacement_path))
+                            # Trim replacement to match scene duration
+                            if replacement_clip.duration > duration_needed:
+                                replacement_clip = replacement_clip.subclipped(0, duration_needed)
+                            # Keep the original audio if replacement has none
+                            if replacement_clip.audio is None and scene_clip.audio is not None:
+                                replacement_clip = replacement_clip.with_audio(scene_clip.audio)
+                            scene_clip.close()
+                            scene_clip = replacement_clip
+                        except Exception as e:
+                            logger.warning(f"Failed to apply media replacement for scene {scene_num}: {e}")
+                    else:
+                        logger.info(f"Media replacement for scene {scene_num} is a URL, skipping local replacement: {replacement.media_url}")
 
                 # Apply audio level adjustment
                 volume = audio_map.get(scene_num)

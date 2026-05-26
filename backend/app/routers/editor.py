@@ -1,5 +1,6 @@
 """Video editor API routes."""
 
+import asyncio
 import logging
 from pathlib import Path as FilePath
 
@@ -19,6 +20,9 @@ from app.services.video_editor import apply_edits, extract_frame, get_video_meta
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/videos", tags=["editor"])
+
+# Limit concurrent edit requests to avoid exhausting RAM on large videos
+_edit_semaphore = asyncio.Semaphore(2)
 
 
 @router.get("/{video_id}/scenes", response_model=list[SceneMetadata])
@@ -74,27 +78,29 @@ async def edit_video(
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
 
-    try:
-        result = apply_edits(
-            video_path=str(video_path),
-            instructions=request.instructions,
-            output_dir=str(output_dir),
-        )
-        return EditResponse(
-            video_id=result["video_id"],
-            video_path=result["video_path"],
-            duration_seconds=result["duration_seconds"],
-        )
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Video not found")
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Video editing failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Video editing failed: {type(e).__name__}",
-        )
+    async with _edit_semaphore:
+        try:
+            result = await asyncio.to_thread(
+                apply_edits,
+                video_path=str(video_path),
+                instructions=request.instructions,
+                output_dir=str(output_dir),
+            )
+            return EditResponse(
+                video_id=result["video_id"],
+                video_path=result["video_path"],
+                duration_seconds=result["duration_seconds"],
+            )
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Video not found")
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Exception as e:
+            logger.error(f"Video editing failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Video editing failed: {type(e).__name__}",
+            )
 
 
 @router.post("/{video_id}/preview-frame", response_model=PreviewFrameResponse)
@@ -113,7 +119,9 @@ async def preview_frame(
         raise HTTPException(status_code=404, detail="Video not found")
 
     try:
-        frame_data, width, height = extract_frame(str(video_path), request.timestamp)
+        frame_data, width, height = await asyncio.to_thread(
+            extract_frame, str(video_path), request.timestamp
+        )
         return PreviewFrameResponse(
             frame_data=frame_data,
             timestamp=request.timestamp,
