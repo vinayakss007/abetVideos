@@ -1,5 +1,6 @@
 import { Link, Outlet } from 'react-router-dom';
 import { Video, Sparkles } from 'lucide-react';
+import ConnectedSources from './ConnectedSources';
 
 export default function Layout() {
   return (
@@ -15,7 +16,8 @@ export default function Layout() {
                 Abet Videos
               </span>
             </Link>
-            <nav className="flex items-center gap-4">
+            <nav className="flex items-center gap-3">
+              <ConnectedSources />
               <Link
                 to="/create"
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-colors font-medium text-sm"

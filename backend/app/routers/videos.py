@@ -25,7 +25,7 @@ from app.models.schemas import (
     VideoResult,
     VideoScript,
 )
-from app.services.media_sourcer import source_media, search_all_sources
+from app.services.media_sourcer import source_media, search_all_sources, provider_registry
 from app.services.script_generator import generate_script
 from app.services.tts_service import generate_tts
 from app.services.video_assembler import assemble_video
@@ -42,6 +42,15 @@ def _safe_error_detail(prefix: str, exc: Exception) -> str:
     full message, which may contain file paths, API keys, or stack info.
     """
     return f"{prefix}: {type(exc).__name__}"
+
+
+@router.get("/providers")
+async def list_providers():
+    """Return the list of configured/active media providers.
+
+    Shows which media providers are connected and available for use.
+    """
+    return provider_registry.get_providers_status()
 
 
 @router.post("/generate-script", response_model=VideoScript)

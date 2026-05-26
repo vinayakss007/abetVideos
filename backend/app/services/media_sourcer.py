@@ -1,10 +1,16 @@
-"""Media sourcing service - searches Pexels, Pixabay, Giphy, Unsplash, and Freesound for media."""
+"""Media sourcing service - searches Pexels, Pixabay, Giphy, Unsplash, and Freesound for media.
+
+Provides a pluggable provider system via the MediaProvider abstract base class
+and MediaProviderRegistry. New providers can be added by subclassing
+MediaProvider and registering with the registry.
+"""
 
 import asyncio
 import json
 import logging
 import os
 import uuid
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +21,239 @@ from app.config import settings
 from app.models.schemas import MediaItem, MediaType, SceneMedia, VideoScript
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Abstract base class for media providers
+# ---------------------------------------------------------------------------
+
+
+class MediaProvider(ABC):
+    """Abstract base class for media providers.
+
+    Subclass this to add a new media source. Implement the `search` method
+    and set the class-level attributes. Register your provider with the
+    MediaProviderRegistry to make it available to the system.
+    """
+
+    name: str = ""
+    supported_media_types: list[MediaType] = []
+
+    @abstractmethod
+    async def search(
+        self, query: str, client: httpx.AsyncClient, per_page: int = 3
+    ) -> list[MediaItem]:
+        """Search this provider for media matching the query."""
+        ...
+
+    def is_configured(self) -> bool:
+        """Return True if this provider has valid API credentials configured."""
+        return False
+
+    def get_status(self) -> dict:
+        """Return provider status info for the API."""
+        return {
+            "name": self.name,
+            "configured": self.is_configured(),
+            "media_types": [mt.value for mt in self.supported_media_types],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Concrete provider implementations
+# ---------------------------------------------------------------------------
+
+
+class PexelsProvider(MediaProvider):
+    """Pexels API provider for videos and photos."""
+
+    name = "pexels"
+    supported_media_types = [MediaType.video, MediaType.image]
+
+    def is_configured(self) -> bool:
+        return bool(settings.pexels_api_key)
+
+    async def search(
+        self, query: str, client: httpx.AsyncClient, per_page: int = 3
+    ) -> list[MediaItem]:
+        items: list[MediaItem] = []
+        if not self.is_configured():
+            return items
+        video_items = await search_pexels_videos(query, client, per_page=per_page)
+        photo_items = await search_pexels_photos(query, client, per_page=per_page)
+        items.extend(video_items)
+        items.extend(photo_items)
+        return items
+
+
+class PixabayProvider(MediaProvider):
+    """Pixabay API provider for videos and images."""
+
+    name = "pixabay"
+    supported_media_types = [MediaType.video, MediaType.image]
+
+    def is_configured(self) -> bool:
+        return bool(settings.pixabay_api_key)
+
+    async def search(
+        self, query: str, client: httpx.AsyncClient, per_page: int = 3
+    ) -> list[MediaItem]:
+        items: list[MediaItem] = []
+        if not self.is_configured():
+            return items
+        video_items = await search_pixabay_videos(query, client, per_page=per_page)
+        image_items = await search_pixabay_images(query, client, per_page=per_page)
+        items.extend(video_items)
+        items.extend(image_items)
+        return items
+
+
+class GiphyProvider(MediaProvider):
+    """Giphy API provider for GIFs."""
+
+    name = "giphy"
+    supported_media_types = [MediaType.gif]
+
+    def is_configured(self) -> bool:
+        return bool(settings.giphy_api_key)
+
+    async def search(
+        self, query: str, client: httpx.AsyncClient, per_page: int = 3
+    ) -> list[MediaItem]:
+        if not self.is_configured():
+            return []
+        return await search_giphy(query, client, limit=per_page)
+
+
+class UnsplashProvider(MediaProvider):
+    """Unsplash API provider for photos."""
+
+    name = "unsplash"
+    supported_media_types = [MediaType.image]
+
+    def is_configured(self) -> bool:
+        return bool(settings.unsplash_access_key)
+
+    async def search(
+        self, query: str, client: httpx.AsyncClient, per_page: int = 3
+    ) -> list[MediaItem]:
+        if not self.is_configured():
+            return []
+        return await search_unsplash(query, client, per_page=per_page)
+
+
+class FreesoundProvider(MediaProvider):
+    """Freesound API provider for audio/sound effects."""
+
+    name = "freesound"
+    supported_media_types = [MediaType.sound]
+
+    def is_configured(self) -> bool:
+        return bool(settings.freesound_api_key)
+
+    async def search(
+        self, query: str, client: httpx.AsyncClient, per_page: int = 3
+    ) -> list[MediaItem]:
+        if not self.is_configured():
+            return []
+        return await search_freesound(query, client, limit=per_page)
+
+
+# ---------------------------------------------------------------------------
+# Provider registry
+# ---------------------------------------------------------------------------
+
+
+class MediaProviderRegistry:
+    """Registry that manages all media providers and handles fallback.
+
+    Providers are tried in registration order. Only providers with valid
+    API credentials are considered active. To add a new provider, create a
+    class that extends MediaProvider and call registry.register(YourProvider()).
+    """
+
+    def __init__(self) -> None:
+        self._providers: list[MediaProvider] = []
+
+    def register(self, provider: MediaProvider) -> None:
+        """Register a new media provider."""
+        self._providers.append(provider)
+
+    def get_all_providers(self) -> list[MediaProvider]:
+        """Return all registered providers."""
+        return list(self._providers)
+
+    def get_active_providers(self) -> list[MediaProvider]:
+        """Return only providers with valid API credentials."""
+        return [p for p in self._providers if p.is_configured()]
+
+    def get_providers_status(self) -> list[dict]:
+        """Return status info for all registered providers."""
+        return [p.get_status() for p in self._providers]
+
+    async def search_all(
+        self, query: str, client: httpx.AsyncClient, per_page: int = 2
+    ) -> list[MediaItem]:
+        """Search all active providers concurrently."""
+        active = self.get_active_providers()
+        if not active:
+            return []
+
+        tasks = [p.search(query, client, per_page=per_page) for p in active]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_items: list[MediaItem] = []
+        for result in results:
+            if isinstance(result, list):
+                all_items.extend(result)
+        return all_items
+
+    async def search_with_fallback(
+        self,
+        query: str,
+        client: httpx.AsyncClient,
+        preferred_types: list[MediaType] | None = None,
+        per_page: int = 3,
+    ) -> list[MediaItem]:
+        """Search providers with fallback - tries each active provider in order.
+
+        If preferred_types is specified, providers supporting those types
+        are tried first.
+        """
+        active = self.get_active_providers()
+        if not active:
+            return []
+
+        # Sort providers: those matching preferred types first
+        if preferred_types:
+            preferred = [
+                p for p in active
+                if any(mt in p.supported_media_types for mt in preferred_types)
+            ]
+            others = [p for p in active if p not in preferred]
+            ordered = preferred + others
+        else:
+            ordered = active
+
+        for provider in ordered:
+            try:
+                items = await provider.search(query, client, per_page=per_page)
+                if items:
+                    return items
+            except Exception as e:
+                logger.warning(f"Provider {provider.name} failed: {e}")
+                continue
+
+        return []
+
+
+# Global registry instance with all built-in providers
+provider_registry = MediaProviderRegistry()
+provider_registry.register(PexelsProvider())
+provider_registry.register(PixabayProvider())
+provider_registry.register(GiphyProvider())
+provider_registry.register(UnsplashProvider())
+provider_registry.register(FreesoundProvider())
 
 # Module-level lock for cache manifest read-modify-write operations
 _cache_manifest_lock = asyncio.Lock()

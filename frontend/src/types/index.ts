@@ -86,3 +86,9 @@ export type GenerationStep =
   | 'assembling'
   | 'complete'
   | 'error';
+
+export interface MediaProviderStatus {
+  name: string;
+  configured: boolean;
+  media_types: string[];
+}
