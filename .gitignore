@@ -20,6 +20,9 @@ output/
 *.mp3
 *.wav
 
+# Allow demo videos
+!demo/*.mp4
+
 # IDE
 .vscode/
 .idea/
