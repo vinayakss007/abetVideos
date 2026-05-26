@@ -5,15 +5,22 @@ from pydantic import ValidationError
 
 from app.models.schemas import (
     AssembleVideoRequest,
+    BitratePreset,
+    CodecPreset,
+    FPSOption,
+    GenerateFullRequest,
     GenerateScriptRequest,
     GenerateTTSRequest,
     MediaItem,
     MediaType,
+    OutputFormat,
+    Resolution,
     SceneMedia,
     ScriptScene,
     SourceMediaRequest,
     TTSResult,
     VideoFormat,
+    VideoQualitySettings,
     VideoRequest,
     VideoResult,
     VideoScript,
@@ -246,3 +253,142 @@ class TestAssembleVideoRequest:
         )
         assert req.format == VideoFormat.shorts
         assert len(req.tts_results) == 1
+
+    def test_with_quality_settings(self):
+        script = VideoScript(
+            title="Test",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Hello",
+                    visual_description="Test",
+                    duration_seconds=5.0,
+                )
+            ],
+            total_duration=5.0,
+        )
+        tts = [TTSResult(scene_number=1, audio_path="/tmp/audio.mp3", duration_seconds=5.0)]
+        media = [SceneMedia(scene_number=1, media_items=[])]
+        quality = VideoQualitySettings(
+            resolution=Resolution.res_720p,
+            bitrate=BitratePreset.high,
+            fps=FPSOption.fps_30,
+            codec_preset=CodecPreset.fast,
+            output_format=OutputFormat.webm,
+        )
+        req = AssembleVideoRequest(
+            script=script,
+            tts_results=tts,
+            scene_media=media,
+            format=VideoFormat.landscape,
+            quality_settings=quality,
+        )
+        assert req.quality_settings is not None
+        assert req.quality_settings.resolution == Resolution.res_720p
+        assert req.quality_settings.output_format == OutputFormat.webm
+
+    def test_quality_settings_defaults_to_none(self):
+        script = VideoScript(
+            title="Test",
+            scenes=[
+                ScriptScene(
+                    scene_number=1,
+                    narration="Hello",
+                    visual_description="Test",
+                    duration_seconds=5.0,
+                )
+            ],
+            total_duration=5.0,
+        )
+        tts = [TTSResult(scene_number=1, audio_path="/tmp/audio.mp3", duration_seconds=5.0)]
+        media = [SceneMedia(scene_number=1, media_items=[])]
+        req = AssembleVideoRequest(
+            script=script,
+            tts_results=tts,
+            scene_media=media,
+        )
+        assert req.quality_settings is None
+
+
+class TestVideoQualitySettings:
+    def test_defaults(self):
+        settings = VideoQualitySettings()
+        assert settings.resolution == Resolution.res_1080p
+        assert settings.bitrate == BitratePreset.medium
+        assert settings.custom_bitrate is None
+        assert settings.fps == FPSOption.fps_24
+        assert settings.codec_preset == CodecPreset.medium
+        assert settings.output_format == OutputFormat.mp4
+
+    def test_all_resolutions(self):
+        for res in Resolution:
+            settings = VideoQualitySettings(resolution=res)
+            assert settings.resolution == res
+
+    def test_all_bitrate_presets(self):
+        for bp in BitratePreset:
+            settings = VideoQualitySettings(bitrate=bp)
+            assert settings.bitrate == bp
+
+    def test_all_fps_options(self):
+        for fps in FPSOption:
+            settings = VideoQualitySettings(fps=fps)
+            assert settings.fps == fps
+
+    def test_all_codec_presets(self):
+        for cp in CodecPreset:
+            settings = VideoQualitySettings(codec_preset=cp)
+            assert settings.codec_preset == cp
+
+    def test_all_output_formats(self):
+        for fmt in OutputFormat:
+            settings = VideoQualitySettings(output_format=fmt)
+            assert settings.output_format == fmt
+
+    def test_custom_bitrate_field(self):
+        settings = VideoQualitySettings(
+            bitrate=BitratePreset.custom,
+            custom_bitrate="6M",
+        )
+        assert settings.bitrate == BitratePreset.custom
+        assert settings.custom_bitrate == "6M"
+
+    def test_custom_bitrate_without_custom_preset(self):
+        settings = VideoQualitySettings(
+            bitrate=BitratePreset.high,
+            custom_bitrate="10M",
+        )
+        assert settings.bitrate == BitratePreset.high
+        assert settings.custom_bitrate == "10M"
+
+    def test_invalid_resolution_value(self):
+        with pytest.raises(ValidationError):
+            VideoQualitySettings(resolution="invalid")
+
+    def test_invalid_fps_value(self):
+        with pytest.raises(ValidationError):
+            VideoQualitySettings(fps="120")
+
+    def test_invalid_output_format(self):
+        with pytest.raises(ValidationError):
+            VideoQualitySettings(output_format="mkv")
+
+
+class TestGenerateFullRequest:
+    def test_valid_request(self):
+        req = GenerateFullRequest(topic="AI in healthcare")
+        assert req.topic == "AI in healthcare"
+        assert req.quality_settings is None
+
+    def test_with_quality_settings(self):
+        quality = VideoQualitySettings(
+            resolution=Resolution.res_4k,
+            fps=FPSOption.fps_60,
+        )
+        req = GenerateFullRequest(
+            topic="Space exploration",
+            quality_settings=quality,
+        )
+        assert req.quality_settings is not None
+        assert req.quality_settings.resolution == Resolution.res_4k
+        assert req.quality_settings.fps == FPSOption.fps_60

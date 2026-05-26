@@ -23,6 +23,75 @@ class VideoFormat(str, Enum):
     landscape = "landscape"  # 1920x1080 horizontal
 
 
+class Resolution(str, Enum):
+    """Video resolution presets."""
+
+    res_480p = "480p"
+    res_720p = "720p"
+    res_1080p = "1080p"
+    res_4k = "4k"
+
+
+class BitratePreset(str, Enum):
+    """Video bitrate presets."""
+
+    low = "low"
+    medium = "medium"
+    high = "high"
+    custom = "custom"
+
+
+class FPSOption(str, Enum):
+    """Frames per second options."""
+
+    fps_24 = "24"
+    fps_30 = "30"
+    fps_60 = "60"
+
+
+class CodecPreset(str, Enum):
+    """FFmpeg codec speed presets."""
+
+    ultrafast = "ultrafast"
+    superfast = "superfast"
+    veryfast = "veryfast"
+    faster = "faster"
+    fast = "fast"
+    medium = "medium"
+    slow = "slow"
+    slower = "slower"
+    veryslow = "veryslow"
+
+
+class OutputFormat(str, Enum):
+    """Video output file format."""
+
+    mp4 = "mp4"
+    webm = "webm"
+    avi = "avi"
+
+
+class VideoQualitySettings(BaseModel):
+    """Video quality configuration settings."""
+
+    resolution: Resolution = Field(
+        default=Resolution.res_1080p, description="Video resolution"
+    )
+    bitrate: BitratePreset = Field(
+        default=BitratePreset.medium, description="Bitrate preset"
+    )
+    custom_bitrate: Optional[str] = Field(
+        None, description="Custom bitrate value (e.g. '6M'), used when bitrate is 'custom'"
+    )
+    fps: FPSOption = Field(default=FPSOption.fps_24, description="Frames per second")
+    codec_preset: CodecPreset = Field(
+        default=CodecPreset.medium, description="FFmpeg codec speed preset"
+    )
+    output_format: OutputFormat = Field(
+        default=OutputFormat.mp4, description="Output file format"
+    )
+
+
 class VideoRequest(BaseModel):
     """Request model for video generation."""
 
@@ -133,6 +202,9 @@ class AssembleVideoRequest(BaseModel):
     tts_results: list[TTSResult]
     scene_media: list[SceneMedia]
     format: VideoFormat = Field(default=VideoFormat.landscape)
+    quality_settings: Optional[VideoQualitySettings] = Field(
+        default=None, description="Optional video quality settings"
+    )
 
 
 class GenerateFullRequest(BaseModel):
@@ -141,3 +213,6 @@ class GenerateFullRequest(BaseModel):
     topic: str = Field(..., min_length=3, max_length=500)
     duration_minutes: float = Field(default=1.0, ge=0.5, le=10.0)
     style: VideoStyle = Field(default=VideoStyle.educational)
+    quality_settings: Optional[VideoQualitySettings] = Field(
+        default=None, description="Optional video quality settings"
+    )

@@ -1,7 +1,26 @@
+export interface VideoQualitySettings {
+  resolution: '480p' | '720p' | '1080p' | '4k';
+  bitrate: 'low' | 'medium' | 'high' | 'custom';
+  custom_bitrate?: string;
+  fps: '24' | '30' | '60';
+  codec_preset:
+    | 'ultrafast'
+    | 'superfast'
+    | 'veryfast'
+    | 'faster'
+    | 'fast'
+    | 'medium'
+    | 'slow'
+    | 'slower'
+    | 'veryslow';
+  output_format: 'mp4' | 'webm' | 'avi';
+}
+
 export interface VideoRequest {
   topic: string;
   duration_minutes: number;
   style: string;
+  quality_settings?: VideoQualitySettings;
 }
 
 export interface ScriptScene {

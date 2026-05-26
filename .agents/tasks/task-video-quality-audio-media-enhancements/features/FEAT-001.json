@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add video quality controls - resolution, bitrate, FPS, codec preset, and output format options to the video assembler and expose them through the API and frontend UI",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Add new Pydantic models in backend/app/models/schemas.py - Create a VideoQualitySettings model with fields: resolution (enum: 480p/720p/1080p/4k), bitrate (enum: low/medium/high/custom with optional custom_bitrate string field), fps (enum: 24/30/60), codec_preset (enum: ultrafast/superfast/veryfast/faster/fast/medium/slow/slower/veryslow), output_format (enum: mp4/webm/avi). Add VideoQualitySettings as an optional field with sensible defaults to AssembleVideoRequest and GenerateFullRequest schemas.",
+    "Step 2: Update backend/app/services/video_assembler.py - Modify the assemble_video function to accept a VideoQualitySettings parameter. Map resolution enum to actual pixel dimensions (480p=854x480, 720p=1280x720, 1080p=1920x1080, 4k=3840x2160) respecting the format orientation (swap w/h for shorts). Map bitrate enum to actual values (low=1M, medium=4M, high=8M). Pass fps, codec preset, and bitrate to write_videofile. For webm format use codec='libvpx' and audio_codec='libvorbis'. Update the RESOLUTIONS dict to be driven by quality settings instead of hardcoded values.",
+    "Step 3: Update backend/app/routers/videos.py - Pass the new quality_settings from AssembleVideoRequest through to assemble_video. Update the generate-full SSE endpoint to accept and pass quality settings.",
+    "Step 4: Update frontend types in frontend/src/types/index.ts - Add VideoQualitySettings interface with all the quality options. Add quality_settings optional field to VideoRequest.",
+    "Step 5: Update frontend/src/api/client.ts - Pass quality_settings in assembleVideo call and generate-full calls.",
+    "Step 6: Create a new frontend component frontend/src/components/QualitySettings.tsx - Build a collapsible 'Advanced Settings' panel that appears in the TopicInput form. Include dropdowns/selectors for resolution, bitrate, FPS, codec preset. Use the same styling patterns as TopicInput.tsx (Tailwind classes, button grid pattern).",
+    "Step 7: Wire QualitySettings into frontend/src/components/TopicInput.tsx - Add quality settings state, pass it through the onSubmit callback as part of VideoRequest.",
+    "Step 8: Update backend/tests/test_schemas.py - Add tests for VideoQualitySettings validation (valid defaults, custom bitrate requires custom enum, all enum values)."
+  ],
+  "acceptance_criteria": [
+    "VideoQualitySettings model validates all enum options correctly",
+    "Video assembler respects fps, bitrate, codec_preset, and resolution from quality settings",
+    "API accepts quality_settings in both /assemble and /generate-full endpoints",
+    "Frontend displays an Advanced Settings panel with quality controls",
+    "All existing backend tests continue to pass (backward compatible defaults)",
+    "Frontend builds without TypeScript errors"
+  ],
+  "verification": [
+    "Run 'cd /projects/sandbox/abetVideos/backend && python -m pytest tests/ -v' and confirm all tests pass",
+    "Run 'cd /projects/sandbox/abetVideos/frontend && npm run build' and confirm no TypeScript compilation errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

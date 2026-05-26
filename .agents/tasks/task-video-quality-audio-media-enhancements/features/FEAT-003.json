@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Enhance media sourcing with Unsplash API, Freesound API for background audio/SFX, better keyword extraction via AI, media quality filtering, caching, fallback chain (video > image > text-on-background), and media preview/selection UI",
+  "status": "pending",
+  "steps": [
+    "Step 1: Add new API keys to backend/app/config.py - Add unsplash_access_key (str, default '') and freesound_api_key (str, default '') to the Settings class. Update .env.example with UNSPLASH_ACCESS_KEY and FREESOUND_API_KEY entries.",
+    "Step 2: Add Unsplash search to backend/app/services/media_sourcer.py - Implement search_unsplash(query, client, per_page=3) function using Unsplash API (https://api.unsplash.com/search/photos). Prefer 'regular' size URL (1080px wide). Return list[MediaItem] with media_type=image, source='unsplash'.",
+    "Step 3: Add Freesound search to backend/app/services/media_sourcer.py - Implement search_freesound(query, client, limit=3) function using Freesound API v2 (https://freesound.org/apiv2/search/text/). Return results as a new model (or extend MediaItem with a 'sound' media_type). This provides background music/SFX options.",
+    "Step 4: Improve keyword extraction in backend/app/services/media_sourcer.py - Replace the simple stop-word-based _extract_keywords function with ai_extract_keywords(visual_description) that uses the AI gateway (app/services/ai_gateway.py) to extract 3-5 optimal search keywords from the visual description. Keep the old function as a fast fallback when AI gateway is unavailable.",
+    "Step 5: Add media quality filtering in backend/app/services/media_sourcer.py - Add a filter_by_quality(items, min_width=1280, min_height=720) function that filters media items by minimum resolution. Apply this filter after collecting results from all sources, before selecting the best item. Allow items without dimension info to pass through.",
+    "Step 6: Add media caching in backend/app/services/media_sourcer.py - Implement a simple file-system cache: before downloading, check if the same URL has already been downloaded (use a JSON manifest file in the cache dir). If cached, reuse the local path. Cache dir: {output_dir}/media_cache/. Add a cache_enabled flag to settings (default True).",
+    "Step 7: Implement fallback chain in source_media_for_scene - Restructure the media sourcing order: (1) Try video sources (Pexels videos, Pixabay videos), (2) Try image sources (Unsplash, Pexels photos, Pixabay images), (3) Try GIFs (Giphy), (4) Final fallback: generate a text-on-background image using PIL (white text of the visual_description on a gradient background). Save the generated image and return it as a MediaItem.",
+    "Step 8: Add a new endpoint POST /api/videos/search-media in backend/app/routers/videos.py - Accepts a query string and returns multiple media options (up to 9) from all sources so the user can pick. This powers the preview/selection UI. Response model: list of MediaItem.",
+    "Step 9: Update frontend/src/types/index.ts - Add 'sound' to MediaItem media_type union. Add search-media related types.",
+    "Step 10: Update frontend/src/api/client.ts - Add searchMedia(query: string): Promise<MediaItem[]> function.",
+    "Step 11: Enhance frontend/src/components/MediaPreview.tsx - Add a 'Search More' button per scene that opens a modal/dropdown with a search input. When the user searches, call the search-media API and display a grid of thumbnail results. Allow the user to click to select a different media item for that scene. Show media quality badges (HD, 4K) based on width/height.",
+    "Step 12: Update backend/tests/test_schemas.py - Add tests for new models and validate the search-media endpoint request/response. Add a test for the text-on-background fallback generation.",
+    "Step 13: Add MediaType.sound to backend/app/models/schemas.py MediaType enum for Freesound results."
+  ],
+  "acceptance_criteria": [
+    "Unsplash API search function returns valid MediaItem results",
+    "Freesound API search function returns sound results",
+    "AI-powered keyword extraction produces better search terms than the stopword approach",
+    "Media quality filter correctly removes low-resolution items",
+    "Cache prevents re-downloading the same URL",
+    "Text-on-background fallback generates a valid image when no API results are found",
+    "Search-media endpoint returns up to 9 results from multiple sources",
+    "Frontend MediaPreview component allows searching and selecting alternative media per scene",
+    "All existing backend tests continue to pass",
+    "Frontend builds without TypeScript errors"
+  ],
+  "verification": [
+    "Run 'cd /projects/sandbox/abetVideos/backend && python -m pytest tests/ -v' and confirm all tests pass",
+    "Run 'cd /projects/sandbox/abetVideos/frontend && npm run build' and confirm no TypeScript compilation errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

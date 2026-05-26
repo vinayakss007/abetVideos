@@ -21,11 +21,17 @@ from PIL import Image
 from app.config import settings
 from app.models.schemas import (
     AssembleVideoRequest,
+    BitratePreset,
+    CodecPreset,
+    FPSOption,
     MediaItem,
     MediaType,
+    OutputFormat,
+    Resolution,
     SceneMedia,
     TTSResult,
     VideoFormat,
+    VideoQualitySettings,
     VideoResult,
     VideoScript,
 )
@@ -38,9 +44,40 @@ RESOLUTIONS = {
     VideoFormat.landscape: (1920, 1080),  # Horizontal 16:9
 }
 
+# Resolution enum to pixel dimensions (landscape orientation)
+RESOLUTION_MAP = {
+    Resolution.res_480p: (854, 480),
+    Resolution.res_720p: (1280, 720),
+    Resolution.res_1080p: (1920, 1080),
+    Resolution.res_4k: (3840, 2160),
+}
 
-def _get_resolution(format: VideoFormat) -> tuple[int, int]:
-    """Get width, height for a video format."""
+# Bitrate preset to actual bitrate string
+BITRATE_MAP = {
+    BitratePreset.low: "1M",
+    BitratePreset.medium: "4M",
+    BitratePreset.high: "8M",
+}
+
+# FPS enum to integer
+FPS_MAP = {
+    FPSOption.fps_24: 24,
+    FPSOption.fps_30: 30,
+    FPSOption.fps_60: 60,
+}
+
+
+def _get_resolution(
+    format: VideoFormat,
+    quality_settings: Optional["VideoQualitySettings"] = None,
+) -> tuple[int, int]:
+    """Get width, height for a video format, optionally using quality settings."""
+    if quality_settings is not None:
+        w, h = RESOLUTION_MAP[quality_settings.resolution]
+        # Swap width/height for shorts (vertical) format
+        if format == VideoFormat.shorts:
+            return (h, w)
+        return (w, h)
     return RESOLUTIONS[format]
 
 
@@ -262,6 +299,7 @@ async def assemble_video(
     scene_media: list[SceneMedia],
     format: VideoFormat = VideoFormat.landscape,
     output_dir: Optional[str] = None,
+    quality_settings: Optional[VideoQualitySettings] = None,
 ) -> VideoResult:
     """Assemble the final video from script, audio, and media.
 
@@ -271,14 +309,21 @@ async def assemble_video(
         scene_media: Media items per scene.
         format: Video format (shorts or landscape).
         output_dir: Optional output directory override.
+        quality_settings: Optional video quality settings for resolution, bitrate, etc.
 
     Returns:
         VideoResult with path to the assembled video.
     """
-    width, height = _get_resolution(format)
+    width, height = _get_resolution(format, quality_settings)
     base_dir = Path(output_dir or settings.output_dir)
+
+    # Determine output format extension
+    output_ext = "mp4"
+    if quality_settings is not None:
+        output_ext = quality_settings.output_format.value
+
     video_id = uuid.uuid4().hex[:12]
-    output_path = base_dir / "videos" / f"{video_id}.mp4"
+    output_path = base_dir / "videos" / f"{video_id}.{output_ext}"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(
@@ -322,17 +367,49 @@ async def assemble_video(
         else:
             final = scene_clips[0]
 
+        # Determine write parameters based on quality settings
+        write_fps = 24
+        write_codec = "libx264"
+        write_audio_codec = "aac"
+        write_preset = "medium"
+        write_bitrate = None
+
+        if quality_settings is not None:
+            write_fps = FPS_MAP[quality_settings.fps]
+            write_preset = quality_settings.codec_preset.value
+
+            # Determine bitrate
+            if quality_settings.bitrate == BitratePreset.custom:
+                write_bitrate = quality_settings.custom_bitrate
+            else:
+                write_bitrate = BITRATE_MAP.get(quality_settings.bitrate)
+
+            # Determine codec based on output format
+            if quality_settings.output_format == OutputFormat.webm:
+                write_codec = "libvpx"
+                write_audio_codec = "libvorbis"
+            elif quality_settings.output_format == OutputFormat.avi:
+                write_codec = "libx264"
+                write_audio_codec = "aac"
+
+        # Build write_videofile kwargs
+        write_kwargs: dict = {
+            "fps": write_fps,
+            "codec": write_codec,
+            "audio_codec": write_audio_codec,
+            "preset": write_preset,
+            "threads": 2,
+            "logger": None,
+        }
+        if write_bitrate:
+            write_kwargs["bitrate"] = write_bitrate
+
         # Write final video in a thread to avoid blocking the async event loop
         logger.info(f"Writing video to {output_path}...")
         await asyncio.to_thread(
             final.write_videofile,
             str(output_path),
-            fps=24,
-            codec="libx264",
-            audio_codec="aac",
-            preset="medium",
-            threads=2,
-            logger=None,
+            **write_kwargs,
         )
 
         total_duration = final.duration if hasattr(final, "duration") else 0

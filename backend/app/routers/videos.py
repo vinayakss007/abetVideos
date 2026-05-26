@@ -111,6 +111,7 @@ async def assemble_final_video(request: AssembleVideoRequest):
             tts_results=request.tts_results,
             scene_media=request.scene_media,
             format=request.format,
+            quality_settings=request.quality_settings,
         )
         return result
     except ValueError as e:
@@ -206,6 +207,7 @@ async def generate_full_video(request: GenerateFullRequest):
                 script=script,
                 tts_results=tts_results,
                 scene_media=scene_media,
+                quality_settings=request.quality_settings,
             )
             yield _sse_event(
                 "video_assembly",

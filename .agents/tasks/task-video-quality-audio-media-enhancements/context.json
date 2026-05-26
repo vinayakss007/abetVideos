@@ -1,0 +1,30 @@
+{
+  "project_type": "Full-stack AI video generation app with FastAPI backend and React frontend",
+  "language": "Python 3.11 (backend), TypeScript (frontend)",
+  "build_system": "pip install -e '.[dev]' for backend, npm for frontend, docker-compose for full stack",
+  "test_framework": "pytest with pytest-asyncio (asyncio_mode=auto) for backend, vitest for frontend",
+  "build_command": "cd backend && pip install -e '.[dev]' && cd ../frontend && npm install && npm run build",
+  "test_command": "cd backend && pytest tests/ -v",
+  "verification_instructions": "1. Run pytest tests/ -v in backend to verify all tests pass. 2. Run npm run build in frontend to verify TypeScript compiles. 3. Optionally docker compose build for full-stack validation.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "1. pip install -e '.[dev]' in backend/ 2. npm install in frontend/",
+  "environment_constraints": "OPEN_INTERNET - full network access available. Python 3.11, Node.js 22 pre-installed. FFmpeg needed for video assembly.",
+  "contribution_requirements": "Conventional commits (feat:, fix:, docs:, etc.). Feature branches. Real implementations only - no mocks or placeholders.",
+  "key_patterns": "Backend: FastAPI routers in app/routers/, services in app/services/, Pydantic schemas in app/models/schemas.py, config via pydantic-settings in app/config.py. Frontend: React 19, TypeScript, Tailwind CSS v4, types in src/types/index.ts, API client in src/api/client.ts, hooks pattern in src/hooks/, components in src/components/. Video assembly uses MoviePy with write_videofile in asyncio.to_thread. TTS via edge-tts. Media sourcing via httpx async client with semaphore-limited concurrency.",
+  "relevant_files": [
+    "backend/app/services/video_assembler.py",
+    "backend/app/services/tts_service.py",
+    "backend/app/services/media_sourcer.py",
+    "backend/app/models/schemas.py",
+    "backend/app/config.py",
+    "backend/app/routers/videos.py",
+    "backend/tests/test_schemas.py",
+    "backend/tests/test_integration.py",
+    "frontend/src/types/index.ts",
+    "frontend/src/api/client.ts",
+    "frontend/src/hooks/useVideoGeneration.ts",
+    "frontend/src/components/TopicInput.tsx",
+    "frontend/src/pages/CreateVideo.tsx"
+  ],
+  "directory_structure": "Root: docker-compose.yml, .env.example. backend/: FastAPI app with app/ (config, main, models/, routers/, services/) and tests/. frontend/: Vite+React app with src/ (api/, assets/, components/, hooks/, pages/, types/)."
+}

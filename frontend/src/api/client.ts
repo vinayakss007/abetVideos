@@ -45,12 +45,14 @@ export async function assembleVideo(data: {
   tts_results: TTSResult[];
   scene_media: SceneMedia[];
   format?: string;
+  quality_settings?: import('../types').VideoQualitySettings;
 }): Promise<VideoResult> {
   const response = await apiClient.post<VideoResult>('/videos/assemble', {
     script: data.script,
     tts_results: data.tts_results,
     scene_media: data.scene_media,
     format: data.format ?? 'landscape',
+    quality_settings: data.quality_settings ?? null,
   });
   return response.data;
 }

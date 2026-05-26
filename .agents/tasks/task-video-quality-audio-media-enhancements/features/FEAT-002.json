@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Improve audio-visual synchronization with crossfade transitions, audio normalization, background music with auto-ducking, and subtitle/caption generation synced to audio timestamps",
+  "status": "pending",
+  "steps": [
+    "Step 1: Add audio-related models in backend/app/models/schemas.py - Create AudioSettings model with fields: crossfade_duration (float, default 0.5s), normalize_audio (bool, default True), background_music_url (optional string), background_music_volume (float 0-1, default 0.15), enable_ducking (bool, default True for auto-ducking when narration plays), generate_subtitles (bool, default False). Add AudioSettings as optional field to AssembleVideoRequest and GenerateFullRequest.",
+    "Step 2: Create backend/app/services/audio_processor.py - Implement audio processing functions: (a) normalize_audio_clip(clip) - uses ffmpeg-normalize or manual gain adjustment to normalize volume across all scene audio clips to a consistent dBFS level. (b) apply_crossfade(clips, duration) - applies audio crossfade between consecutive scene clips. (c) mix_background_music(scene_clips, music_path, volume, enable_ducking) - downloads background music, loops it to match total duration, and mixes it with narration; when ducking is enabled, reduce music volume during narration segments. (d) generate_subtitle_data(tts_results, script) - creates subtitle timing data (SRT format) from TTS durations and narration text.",
+    "Step 3: Update backend/app/services/video_assembler.py - Integrate the audio_processor: Before concatenating scenes, normalize audio if enabled. Use crossfade_duration from AudioSettings in the concatenate_videoclips padding parameter (replacing hardcoded -0.5). After assembly, mix background music if URL provided. Generate .srt subtitle file alongside the video if generate_subtitles is True. Add subtitle_path to VideoResult.",
+    "Step 4: Update backend/app/models/schemas.py VideoResult - Add optional subtitle_path field.",
+    "Step 5: Add new endpoint in backend/app/routers/videos.py - Add GET /api/videos/{video_id}/subtitles to serve the generated .srt file.",
+    "Step 6: Update frontend/src/types/index.ts - Add AudioSettings interface and add audio_settings to VideoRequest. Add subtitle_path to VideoResult.",
+    "Step 7: Update frontend/src/components/QualitySettings.tsx (or create AudioSettingsPanel.tsx) - Add audio controls section with toggles for normalize audio, subtitle generation, crossfade duration slider, and an optional background music URL input.",
+    "Step 8: Update backend/tests/test_schemas.py - Add tests for AudioSettings model validation."
+  ],
+  "acceptance_criteria": [
+    "AudioSettings model validates all fields with correct defaults and constraints",
+    "Audio normalization function adjusts volume levels across scenes",
+    "Crossfade duration is configurable and applied between scenes",
+    "Background music mixing with auto-ducking works when a music URL is provided",
+    "Subtitle .srt file is generated with accurate per-scene timing when enabled",
+    "Subtitles endpoint serves the .srt file for a given video_id",
+    "All existing backend tests continue to pass",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "Run 'cd /projects/sandbox/abetVideos/backend && python -m pytest tests/ -v' and confirm all tests pass",
+    "Run 'cd /projects/sandbox/abetVideos/frontend && npm run build' and confirm no TypeScript compilation errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

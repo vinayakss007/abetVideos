@@ -1,0 +1,7 @@
+{
+  "task_id": "task-video-quality-audio-media-enhancements",
+  "task_description": "Add video quality controls (resolution, bitrate, FPS, codec preset), improve audio synchronization (crossfade, normalization, background music with ducking, subtitles), and enhance media sourcing (Unsplash, Freesound APIs, AI keyword extraction, quality filtering, caching, fallback chain, and preview/selection UI)",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
