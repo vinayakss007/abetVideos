@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Build the React frontend with Vite + TypeScript providing a complete UI for the video creation pipeline: topic input, script editor, media preview, video generation progress, and video playback/download.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create frontend/ directory using Vite + React + TypeScript template: npm create vite@latest frontend -- --template react-ts",
     "Install additional dependencies: axios, react-router-dom, tailwindcss, @tailwindcss/vite, lucide-react (icons), react-hot-toast",
@@ -40,5 +40,5 @@
     "cd frontend && npx tsc --noEmit (no type errors)"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Vitest 4.x requires using defineConfig from 'vitest/config' instead of 'vite' to include the test property. Tailwind CSS v4 uses @tailwindcss/vite plugin and @import 'tailwindcss' in CSS (no tailwind.config.js needed). TypeScript 6.x with noUnusedLocals caught unused constants. All 8 tests pass, build produces zero errors, tsc --noEmit clean."
 }
