@@ -168,13 +168,14 @@ def mix_background_music(
             def _ducking_filter(get_frame, t):
                 """Apply time-varying volume based on narration timings."""
                 frame = get_frame(t)
-                # Check if current time falls within any narration segment
+                t_arr = np.atleast_1d(t)
+                # Start with full volume (ones)
+                gain = np.ones(len(t_arr))
                 for start, end in scene_audio_timings:
-                    if start <= t <= end:
-                        # During narration: duck the music
-                        return frame * ducking_ratio
-                # Between narration: full volume
-                return frame
+                    mask = (t_arr >= start) & (t_arr <= end)
+                    gain[mask] = ducking_ratio
+                # Reshape gain for broadcasting with frame shape (N, channels)
+                return frame * gain.reshape(-1, 1)
 
             music = music.transform(_ducking_filter)
 
