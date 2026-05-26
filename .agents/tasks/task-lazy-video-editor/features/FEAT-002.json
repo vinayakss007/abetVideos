@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Frontend lazy-loaded video editor - Complete editor UI with React.lazy/Suspense, code-split into its own chunk, with scene reorder, trim, text overlay, media swap, audio controls, and frame preview. Fully unloads from memory when navigated away.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Add editor-related TypeScript types in frontend/src/types/index.ts: EditorScene (scene_number, thumbnail_url, duration_seconds, start_time, end_time, narration, media_info), TextOverlay (text, x, y, font_size, color, scene_number), EditInstruction (scene_order, trims, text_overlays, audio_levels, background_music_volume), PreviewFrame (base64 JPEG data, timestamp)",
     "Add editor API functions in frontend/src/api/client.ts: getScenes(videoId), submitEdit(videoId, instructions), getPreviewFrame(videoId, timestamp), searchMedia(query) is already present",

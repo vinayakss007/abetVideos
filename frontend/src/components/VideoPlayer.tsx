@@ -1,4 +1,5 @@
-import { Download, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { Download, RotateCcw, CheckCircle2, Film } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { VideoResult } from '../types';
 import { getVideoDownloadUrl } from '../api/client';
 
@@ -42,6 +43,13 @@ export default function VideoPlayer({ result, onReset }: VideoPlayerProps) {
           <Download className="w-5 h-5" />
           Download Video
         </a>
+        <Link
+          to={`/edit/${result.video_id}`}
+          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-semibold rounded-xl transition-colors"
+        >
+          <Film className="w-5 h-5" />
+          Open Editor
+        </Link>
         <button
           type="button"
           onClick={onReset}

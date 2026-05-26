@@ -92,3 +92,49 @@ export interface MediaProviderStatus {
   configured: boolean;
   media_types: string[];
 }
+
+// Editor types
+
+export interface TextOverlayInstruction {
+  text: string;
+  x: number; // 0-100 percentage
+  y: number; // 0-100 percentage
+  font_size: number;
+  color: string;
+  scene_number: number;
+}
+
+export interface SceneTrim {
+  scene_number: number;
+  start_time: number;
+  end_time: number;
+}
+
+export interface SceneAudioLevel {
+  scene_number: number;
+  volume: number; // 0.0 to 2.0
+}
+
+export interface EditInstruction {
+  scene_order: number[];
+  trims: SceneTrim[];
+  text_overlays: TextOverlayInstruction[];
+  audio_levels: SceneAudioLevel[];
+  background_music_volume: number;
+}
+
+export interface SceneMetadata {
+  scene_number: number;
+  thumbnail_url: string;
+  duration_seconds: number;
+  narration: string;
+  visual_description: string;
+  media_url: string | null;
+}
+
+export interface PreviewFrame {
+  frame_data: string; // base64 JPEG
+  timestamp: number;
+  width: number;
+  height: number;
+}

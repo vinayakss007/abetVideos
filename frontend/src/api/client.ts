@@ -1,6 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult, MediaItem, MediaProviderStatus } from '../types';
+import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult, MediaItem, MediaProviderStatus, SceneMetadata, EditInstruction, PreviewFrame } from '../types';
 
 const apiClient = axios.create({
   baseURL: '/api',
@@ -74,6 +74,21 @@ export async function searchMedia(query: string): Promise<MediaItem[]> {
 
 export async function getProviders(): Promise<MediaProviderStatus[]> {
   const response = await apiClient.get<MediaProviderStatus[]>('/videos/providers');
+  return response.data;
+}
+
+export async function getScenes(videoId: string): Promise<SceneMetadata[]> {
+  const response = await apiClient.get<SceneMetadata[]>(`/videos/${videoId}/scenes`);
+  return response.data;
+}
+
+export async function submitEdit(videoId: string, instructions: EditInstruction): Promise<{ video_id: string; video_path: string; duration_seconds: number }> {
+  const response = await apiClient.post<{ video_id: string; video_path: string; duration_seconds: number }>(`/videos/${videoId}/edit`, { instructions });
+  return response.data;
+}
+
+export async function getPreviewFrame(videoId: string, timestamp: number): Promise<PreviewFrame> {
+  const response = await apiClient.post<PreviewFrame>(`/videos/${videoId}/preview-frame`, { timestamp });
   return response.data;
 }
 

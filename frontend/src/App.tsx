@@ -1,8 +1,11 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import CreateVideo from './pages/CreateVideo';
+
+const EditorPage = lazy(() => import('./pages/EditorPage'));
 
 function App() {
   return (
@@ -21,6 +24,11 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/create" element={<CreateVideo />} />
+          <Route path="/edit/:videoId" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-gray-400">Loading Editor...</div></div>}>
+              <EditorPage />
+            </Suspense>
+          } />
         </Route>
       </Routes>
     </BrowserRouter>
