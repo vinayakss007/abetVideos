@@ -1,6 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult } from '../types';
+import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult, MediaItem } from '../types';
 
 const apiClient = axios.create({
   baseURL: '/api',
@@ -65,6 +65,11 @@ export function getVideoDownloadUrl(videoId: string): string {
 
 export function getVideoSubtitlesUrl(videoId: string): string {
   return `/api/videos/${videoId}/subtitles`;
+}
+
+export async function searchMedia(query: string): Promise<MediaItem[]> {
+  const response = await apiClient.post<MediaItem[]>('/videos/search-media', { query });
+  return response.data;
 }
 
 export default apiClient;

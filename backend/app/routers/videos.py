@@ -9,19 +9,23 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import FileResponse, StreamingResponse
 
+import httpx
+
 from app.config import settings
 from app.models.schemas import (
     AssembleVideoRequest,
     GenerateFullRequest,
     GenerateScriptRequest,
     GenerateTTSRequest,
+    MediaItem,
     SceneMedia,
+    SearchMediaRequest,
     SourceMediaRequest,
     TTSResult,
     VideoResult,
     VideoScript,
 )
-from app.services.media_sourcer import source_media
+from app.services.media_sourcer import source_media, search_all_sources
 from app.services.script_generator import generate_script
 from app.services.tts_service import generate_tts
 from app.services.video_assembler import assemble_video
@@ -95,6 +99,25 @@ async def source_video_media(request: SourceMediaRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Media sourcing failed: {str(e)}",
+        )
+
+
+@router.post("/search-media", response_model=list[MediaItem])
+async def search_media(request: SearchMediaRequest):
+    """Search all media sources for a given query.
+
+    Returns up to 9 results from all sources (Pexels, Pixabay, Unsplash,
+    Giphy, Freesound) so the user can preview and select media.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            results = await search_all_sources(request.query, client)
+        return results
+    except Exception as e:
+        logger.error(f"Media search failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Media search failed: {str(e)}",
         )
 
 

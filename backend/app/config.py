@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     pexels_api_key: str = ""
     pixabay_api_key: str = ""
     giphy_api_key: str = ""
+    unsplash_access_key: str = ""
+    freesound_api_key: str = ""
+
+    # Media caching
+    media_cache_enabled: bool = True
 
     # Output configuration
     output_dir: str = "./output"

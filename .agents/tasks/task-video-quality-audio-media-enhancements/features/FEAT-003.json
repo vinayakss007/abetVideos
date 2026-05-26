@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Enhance media sourcing with Unsplash API, Freesound API for background audio/SFX, better keyword extraction via AI, media quality filtering, caching, fallback chain (video > image > text-on-background), and media preview/selection UI",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1: Add new API keys to backend/app/config.py - Add unsplash_access_key (str, default '') and freesound_api_key (str, default '') to the Settings class. Update .env.example with UNSPLASH_ACCESS_KEY and FREESOUND_API_KEY entries.",
     "Step 2: Add Unsplash search to backend/app/services/media_sourcer.py - Implement search_unsplash(query, client, per_page=3) function using Unsplash API (https://api.unsplash.com/search/photos). Prefer 'regular' size URL (1080px wide). Return list[MediaItem] with media_type=image, source='unsplash'.",

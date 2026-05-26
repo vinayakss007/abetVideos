@@ -563,3 +563,83 @@ class TestGenerateFullRequestWithAudio:
     def test_audio_settings_defaults_to_none(self):
         req = GenerateFullRequest(topic="AI in healthcare")
         assert req.audio_settings is None
+
+
+class TestMediaTypeSound:
+    def test_sound_enum_value(self):
+        assert MediaType.sound == "sound"
+        assert MediaType.sound.value == "sound"
+
+    def test_media_item_with_sound_type(self):
+        item = MediaItem(
+            url="https://freesound.org/preview/12345.mp3",
+            media_type=MediaType.sound,
+            source="freesound",
+            query="ocean waves",
+        )
+        assert item.media_type == MediaType.sound
+        assert item.source == "freesound"
+
+    def test_all_media_types(self):
+        expected = {"video", "image", "gif", "sound"}
+        actual = {mt.value for mt in MediaType}
+        assert actual == expected
+
+
+class TestSearchMediaRequest:
+    def test_valid_request(self):
+        from app.models.schemas import SearchMediaRequest
+        req = SearchMediaRequest(query="sunset ocean")
+        assert req.query == "sunset ocean"
+
+    def test_empty_query_fails(self):
+        from app.models.schemas import SearchMediaRequest
+        with pytest.raises(ValidationError):
+            SearchMediaRequest(query="")
+
+
+class TestSearchMediaEndpoint:
+    @pytest.fixture
+    def client(self):
+        from fastapi.testclient import TestClient
+        from app.main import app
+        return TestClient(app)
+
+    def test_search_media_returns_list(self, client, monkeypatch):
+        """Test the search-media endpoint returns media items."""
+        from app.routers import videos
+
+        async def mock_search_all_sources(query, http_client, per_source=2):
+            return [
+                MediaItem(
+                    url="https://example.com/photo.jpg",
+                    media_type=MediaType.image,
+                    source="unsplash",
+                    query=query,
+                    width=1920,
+                    height=1080,
+                ),
+                MediaItem(
+                    url="https://example.com/video.mp4",
+                    media_type=MediaType.video,
+                    source="pexels",
+                    query=query,
+                    width=1920,
+                    height=1080,
+                ),
+            ]
+
+        monkeypatch.setattr(videos, "search_all_sources", mock_search_all_sources)
+
+        response = client.post("/api/videos/search-media", json={"query": "nature sunset"})
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 2
+        assert data[0]["source"] == "unsplash"
+        assert data[1]["source"] == "pexels"
+
+    def test_search_media_empty_query_fails(self, client):
+        """Test that empty query returns validation error."""
+        response = client.post("/api/videos/search-media", json={"query": ""})
+        assert response.status_code == 422

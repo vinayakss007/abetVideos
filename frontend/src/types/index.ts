@@ -48,7 +48,7 @@ export interface VideoScript {
 
 export interface MediaItem {
   url: string;
-  media_type: 'image' | 'gif' | 'video';
+  media_type: 'image' | 'gif' | 'video' | 'sound';
   source: string;
   query: string;
   local_path?: string;

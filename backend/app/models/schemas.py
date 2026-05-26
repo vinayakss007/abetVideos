@@ -157,6 +157,7 @@ class MediaType(str, Enum):
     video = "video"
     image = "image"
     gif = "gif"
+    sound = "sound"
 
 
 class MediaItem(BaseModel):
@@ -219,6 +220,12 @@ class SourceMediaRequest(BaseModel):
 
     script: VideoScript
     preferred_type: Optional[MediaType] = None
+
+
+class SearchMediaRequest(BaseModel):
+    """Request to search media across all sources."""
+
+    query: str = Field(..., min_length=1, max_length=200, description="Search query")
 
 
 class AssembleVideoRequest(BaseModel):

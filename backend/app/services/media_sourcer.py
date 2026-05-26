@@ -1,6 +1,7 @@
-"""Media sourcing service - searches Pexels, Pixabay, and Giphy for media."""
+"""Media sourcing service - searches Pexels, Pixabay, Giphy, Unsplash, and Freesound for media."""
 
 import asyncio
+import json
 import logging
 import os
 import uuid
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+from PIL import Image, ImageDraw, ImageFont
 
 from app.config import settings
 from app.models.schemas import MediaItem, MediaType, SceneMedia, VideoScript
@@ -20,6 +22,8 @@ PEXELS_PHOTO_URL = "https://api.pexels.com/v1/search"
 PIXABAY_URL = "https://pixabay.com/api/"
 PIXABAY_VIDEO_URL = "https://pixabay.com/api/videos/"
 GIPHY_URL = "https://api.giphy.com/v1/gifs/search"
+UNSPLASH_SEARCH_URL = "https://api.unsplash.com/search/photos"
+FREESOUND_SEARCH_URL = "https://freesound.org/apiv2/search/text/"
 
 
 def _extract_keywords(visual_description: str) -> str:
@@ -43,6 +47,161 @@ def _extract_keywords(visual_description: str) -> str:
     keywords = [w.strip(".,!?;:'\"") for w in words if w.lower().strip(".,!?;:'\"") not in stop_words]
     # Take first 5 meaningful keywords
     return " ".join(keywords[:5])
+
+
+async def ai_extract_keywords(visual_description: str) -> str:
+    """Extract optimal search keywords using the AI gateway.
+
+    Uses the AI gateway to produce 3-5 search-optimized keywords
+    from a visual description. Falls back to _extract_keywords on failure.
+    """
+    try:
+        from app.services.ai_gateway import ai_gateway
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a media search keyword extractor. Given a visual description, "
+                    "output 3-5 optimal search keywords separated by spaces. "
+                    "Output ONLY the keywords, nothing else."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Extract search keywords from: {visual_description}",
+            },
+        ]
+        result = await ai_gateway.chat_completion(
+            messages=messages,
+            temperature=0.3,
+            max_tokens=50,
+        )
+        keywords = result.strip()
+        if keywords:
+            return keywords
+    except Exception as e:
+        logger.warning(f"AI keyword extraction failed, using fallback: {e}")
+
+    return _extract_keywords(visual_description)
+
+
+def filter_by_quality(
+    items: list[MediaItem], min_width: int = 1280, min_height: int = 720
+) -> list[MediaItem]:
+    """Filter media items by minimum resolution.
+
+    Items without width/height information pass through.
+    """
+    filtered = []
+    for item in items:
+        if item.width is None or item.height is None:
+            filtered.append(item)
+        elif item.width >= min_width and item.height >= min_height:
+            filtered.append(item)
+    return filtered
+
+
+def _get_cache_manifest_path(output_dir: Path) -> Path:
+    """Get the path to the media cache manifest file."""
+    cache_dir = output_dir / "media_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / "manifest.json"
+
+
+def _load_cache_manifest(manifest_path: Path) -> dict[str, str]:
+    """Load the cache manifest from disk."""
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r") as f:
+                return json.loads(f.read())
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def _save_cache_manifest(manifest_path: Path, manifest: dict[str, str]) -> None:
+    """Save the cache manifest to disk."""
+    with open(manifest_path, "w") as f:
+        f.write(json.dumps(manifest, indent=2))
+
+
+async def search_unsplash(
+    query: str, client: httpx.AsyncClient, per_page: int = 3
+) -> list[MediaItem]:
+    """Search Unsplash for photos."""
+    if not settings.unsplash_access_key:
+        return []
+
+    try:
+        response = await client.get(
+            UNSPLASH_SEARCH_URL,
+            params={"query": query, "per_page": per_page},
+            headers={"Authorization": f"Client-ID {settings.unsplash_access_key}"},
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        items = []
+        for photo in data.get("results", []):
+            urls = photo.get("urls", {})
+            url = urls.get("regular", "")
+            if url:
+                items.append(
+                    MediaItem(
+                        url=url,
+                        media_type=MediaType.image,
+                        source="unsplash",
+                        query=query,
+                        width=photo.get("width"),
+                        height=photo.get("height"),
+                    )
+                )
+        return items
+    except Exception as e:
+        logger.warning(f"Unsplash search failed for '{query}': {e}")
+        return []
+
+
+async def search_freesound(
+    query: str, client: httpx.AsyncClient, limit: int = 3
+) -> list[MediaItem]:
+    """Search Freesound for audio/sound effects."""
+    if not settings.freesound_api_key:
+        return []
+
+    try:
+        response = await client.get(
+            FREESOUND_SEARCH_URL,
+            params={
+                "query": query,
+                "token": settings.freesound_api_key,
+                "fields": "id,name,previews,duration",
+                "page_size": limit,
+            },
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        items = []
+        for result in data.get("results", []):
+            previews = result.get("previews", {})
+            url = previews.get("preview-hq-mp3") or previews.get("preview-lq-mp3", "")
+            if url:
+                items.append(
+                    MediaItem(
+                        url=url,
+                        media_type=MediaType.sound,
+                        source="freesound",
+                        query=query,
+                    )
+                )
+        return items
+    except Exception as e:
+        logger.warning(f"Freesound search failed for '{query}': {e}")
+        return []
 
 
 async def search_pexels_videos(
@@ -253,10 +412,84 @@ async def search_giphy(
         return []
 
 
+def generate_text_on_background(
+    visual_description: str,
+    output_dir: Path,
+    width: int = 1920,
+    height: int = 1080,
+) -> MediaItem:
+    """Generate a text-on-background fallback image using PIL.
+
+    Creates a dark gradient background with white text centered on it.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create gradient background (dark blue to dark purple)
+    img = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(img)
+
+    # Draw a vertical gradient
+    for y in range(height):
+        ratio = y / height
+        r = int(20 + ratio * 30)
+        g = int(20 + ratio * 10)
+        b = int(40 + ratio * 40)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+    # Add text
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+    except (IOError, OSError):
+        font = ImageFont.load_default()
+
+    # Wrap text to fit the image
+    max_chars_per_line = 40
+    words = visual_description.split()
+    lines = []
+    current_line = ""
+    for word in words:
+        if len(current_line) + len(word) + 1 <= max_chars_per_line:
+            current_line = f"{current_line} {word}" if current_line else word
+        else:
+            if current_line:
+                lines.append(current_line)
+            current_line = word
+    if current_line:
+        lines.append(current_line)
+
+    # Draw text centered
+    line_height = 60
+    total_text_height = len(lines) * line_height
+    start_y = (height - total_text_height) // 2
+
+    for i, line in enumerate(lines):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_width = bbox[2] - bbox[0]
+        x = (width - text_width) // 2
+        y = start_y + i * line_height
+        draw.text((x, y), line, fill=(255, 255, 255), font=font)
+
+    filename = f"fallback_{uuid.uuid4().hex[:12]}.png"
+    filepath = output_dir / filename
+    img.save(filepath, "PNG")
+
+    return MediaItem(
+        url=f"file://{filepath}",
+        local_path=str(filepath),
+        media_type=MediaType.image,
+        source="generated",
+        query=visual_description[:50],
+        width=width,
+        height=height,
+    )
+
+
 async def download_media(
     item: MediaItem, output_dir: Path, client: httpx.AsyncClient
 ) -> MediaItem:
     """Download a media item to the local filesystem.
+
+    Uses file-based caching if enabled in settings.
 
     Args:
         item: The media item to download.
@@ -268,10 +501,21 @@ async def download_media(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Check cache if enabled
+    if settings.media_cache_enabled:
+        manifest_path = _get_cache_manifest_path(output_dir)
+        manifest = _load_cache_manifest(manifest_path)
+        cached_path = manifest.get(item.url)
+        if cached_path and Path(cached_path).exists():
+            item.local_path = cached_path
+            logger.info(f"Cache hit for {item.url}")
+            return item
+
     ext_map = {
         MediaType.video: ".mp4",
         MediaType.image: ".jpg",
         MediaType.gif: ".gif",
+        MediaType.sound: ".mp3",
     }
     ext = ext_map.get(item.media_type, ".bin")
     filename = f"{uuid.uuid4().hex[:12]}{ext}"
@@ -286,10 +530,45 @@ async def download_media(
 
         item.local_path = str(filepath)
         logger.info(f"Downloaded {item.media_type.value} from {item.source}: {filepath}")
+
+        # Update cache manifest
+        if settings.media_cache_enabled:
+            manifest_path = _get_cache_manifest_path(output_dir)
+            manifest = _load_cache_manifest(manifest_path)
+            manifest[item.url] = str(filepath)
+            _save_cache_manifest(manifest_path, manifest)
+
     except Exception as e:
         logger.warning(f"Failed to download media from {item.url}: {e}")
 
     return item
+
+
+async def search_all_sources(
+    query: str, client: httpx.AsyncClient, per_source: int = 2
+) -> list[MediaItem]:
+    """Search all media sources concurrently and return aggregated results.
+
+    Returns up to 9 results across all sources.
+    """
+    tasks = [
+        search_pexels_videos(query, client, per_page=per_source),
+        search_pixabay_videos(query, client, per_page=per_source),
+        search_unsplash(query, client, per_page=per_source),
+        search_pexels_photos(query, client, per_page=per_source),
+        search_pixabay_images(query, client, per_page=per_source),
+        search_giphy(query, client, limit=per_source),
+        search_freesound(query, client, limit=per_source),
+    ]
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    all_items: list[MediaItem] = []
+    for result in results:
+        if isinstance(result, list):
+            all_items.extend(result)
+
+    return all_items[:9]
 
 
 async def source_media_for_scene(
@@ -301,41 +580,55 @@ async def source_media_for_scene(
 ) -> SceneMedia:
     """Source media for a single scene with fallback logic.
 
-    Tries multiple APIs in order: Pexels -> Pixabay -> Giphy.
-    Downloads the best result locally.
+    Fallback chain:
+    1. Video sources (Pexels videos, Pixabay videos)
+    2. Image sources (Unsplash, Pexels photos, Pixabay images)
+    3. GIFs (Giphy)
+    4. Text-on-background fallback using PIL
     """
-    keywords = _extract_keywords(visual_description)
+    keywords = await ai_extract_keywords(visual_description)
     logger.info(f"Scene {scene_number}: searching for '{keywords}'")
 
     media_items: list[MediaItem] = []
 
-    # Try video sources first, then images, then GIFs
+    # Step 1: Try video sources
     if preferred_type != MediaType.image:
-        # Try Pexels videos
         items = await search_pexels_videos(keywords, client)
         media_items.extend(items)
 
-        # Try Pixabay videos
         if not media_items:
             items = await search_pixabay_videos(keywords, client)
             media_items.extend(items)
 
-    # Try images
+    # Step 2: Try image sources
     if not media_items or preferred_type == MediaType.image:
-        items = await search_pexels_photos(keywords, client)
+        items = await search_unsplash(keywords, client)
         media_items.extend(items)
+
+        if not media_items:
+            items = await search_pexels_photos(keywords, client)
+            media_items.extend(items)
 
         if not media_items:
             items = await search_pixabay_images(keywords, client)
             media_items.extend(items)
 
-    # Try GIFs as fallback
+    # Step 3: Try GIFs as fallback
     if not media_items:
         items = await search_giphy(keywords, client)
         media_items.extend(items)
 
+    # Apply quality filter
+    media_items = filter_by_quality(media_items)
+
+    # Step 4: Text-on-background fallback
+    if not media_items:
+        scene_dir = output_dir / f"scene_{scene_number:03d}"
+        fallback_item = generate_text_on_background(visual_description, scene_dir)
+        media_items.append(fallback_item)
+
     # Download the best item (first result)
-    if media_items:
+    if media_items and not media_items[0].local_path:
         scene_dir = output_dir / f"scene_{scene_number:03d}"
         media_items[0] = await download_media(media_items[0], scene_dir, client)
 
