@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Build the React frontend with Vite + TypeScript providing a complete UI for the video creation pipeline: topic input, script editor, media preview, video generation progress, and video playback/download.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create frontend/ directory using Vite + React + TypeScript template: npm create vite@latest frontend -- --template react-ts",
     "Install additional dependencies: axios, react-router-dom, tailwindcss, @tailwindcss/vite, lucide-react (icons), react-hot-toast",
