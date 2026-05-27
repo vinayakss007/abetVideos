@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Add AI Image Generation Provider and AI Video Generation Provider as fallback media providers, update config/settings, update media sourcing pipeline to track AI generation limits, update schemas to include AI generation settings and stats in requests/responses, update .env.example",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Update backend/app/config.py - Add new settings fields: ai_image_enabled (bool, default True), ai_video_enabled (bool, default False), ai_image_max_per_video (int, default 5), ai_video_max_per_video (int, default 3), ai_image_quality (str, default 'standard'), ai_image_size (str, default '1792x1024'), replicate_api_token (str, default ''). These use the same pydantic-settings pattern already in place.",
     "Step 2: Update backend/app/models/schemas.py - Add AIGenerationSettings model with fields: ai_image_enabled (bool), ai_video_enabled (bool), ai_image_max_per_video (int 0-20), ai_video_max_per_video (int 0-10), ai_image_quality ('standard'|'hd'), ai_image_size ('1024x1024'|'1792x1024'|'1024x1792'). Add AIGenerationStats model with fields: ai_images_generated (int), ai_videos_generated (int), ai_image_limit (int), ai_video_limit (int). Add ai_generation_settings field to GenerateFullRequest, SourceMediaRequest. Add ai_generation_stats field to the SSE complete event data.",
@@ -31,5 +31,5 @@
     "cd /projects/sandbox/abetVideos/backend && python -c \"from app.config import settings; print(f'ai_image_enabled={settings.ai_image_enabled}')\"" 
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 143 tests pass including 30 new tests for AI providers. The AI providers are conditionally imported inside source_media_for_scene to avoid circular imports and module-level registration. When ai_generation_settings is provided, scenes are processed sequentially to properly track shared generation limits. The OpenRouter API key (sk-Uy7d...) is used with base URL https://api.openrouter.ai/v1 as already configured in .env."
 }
