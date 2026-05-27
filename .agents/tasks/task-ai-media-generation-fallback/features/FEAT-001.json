@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add AI Image Generation Provider and AI Video Generation Provider as fallback media providers, update config/settings, update media sourcing pipeline to track AI generation limits, update schemas to include AI generation settings and stats in requests/responses, update .env.example",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Update backend/app/config.py - Add new settings fields: ai_image_enabled (bool, default True), ai_video_enabled (bool, default False), ai_image_max_per_video (int, default 5), ai_video_max_per_video (int, default 3), ai_image_quality (str, default 'standard'), ai_image_size (str, default '1792x1024'), replicate_api_token (str, default ''). These use the same pydantic-settings pattern already in place.",
+    "Step 2: Update backend/app/models/schemas.py - Add AIGenerationSettings model with fields: ai_image_enabled (bool), ai_video_enabled (bool), ai_image_max_per_video (int 0-20), ai_video_max_per_video (int 0-10), ai_image_quality ('standard'|'hd'), ai_image_size ('1024x1024'|'1792x1024'|'1024x1792'). Add AIGenerationStats model with fields: ai_images_generated (int), ai_videos_generated (int), ai_image_limit (int), ai_video_limit (int). Add ai_generation_settings field to GenerateFullRequest, SourceMediaRequest. Add ai_generation_stats field to the SSE complete event data.",
+    "Step 3: Create backend/app/services/ai_image_provider.py - New file implementing AIImageProvider(MediaProvider). Use the OpenAI SDK (already a dependency) with the existing OpenRouter API key and base URL from settings. The search() method should: create an AsyncOpenAI client using settings.openai_api_key and settings.openai_base_url, call client.images.generate(model='dall-e-3', prompt=query, n=1, size=settings.ai_image_size, quality=settings.ai_image_quality), download the generated image URL to a local file, return a MediaItem with source='ai_generated', media_type=MediaType.image. Handle errors gracefully with logging. The is_configured() method checks that settings.openai_api_key is non-empty.",
+    "Step 4: Create backend/app/services/ai_video_provider.py - New file implementing AIVideoProvider(MediaProvider). Uses the Replicate API via httpx (already a dependency). The search() method should: POST to https://api.replicate.com/v1/predictions with model 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438', input: {image: <first generate an image using AI image provider>, ...params}. Since video generation is async, implement polling for the result. The is_configured() method checks that settings.replicate_api_token is non-empty. Handle the case where Replicate is not configured gracefully - just return empty list.",
+    "Step 5: Update backend/app/services/media_sourcer.py - Add AI providers to the registry AFTER the existing providers (so they are last in fallback order). Modify the source_media_for_scene function to accept optional ai_generation_settings and ai_stats tracking dict. After step 3 (GIFs) and before step 4 (text-on-background), add new steps: Step 3.5a: If ai_image_enabled and ai_images_generated < ai_image_max_per_video, try AIImageProvider. Step 3.5b: If ai_video_enabled and ai_videos_generated < ai_video_max_per_video, try AIVideoProvider. Update the source_media function signature to accept ai_generation_settings and return a tuple of (list[SceneMedia], AIGenerationStats). Keep backward compatibility - if ai_generation_settings is None, skip AI providers.",
+    "Step 6: Update backend/app/routers/videos.py - Update the source_video_media endpoint and generate_full_video endpoint to pass ai_generation_settings through to source_media. In the SSE complete event, include ai_generation_stats in the response data. Add a new GET endpoint /api/videos/ai-settings that returns the default AI generation settings from config (so the frontend can show defaults).",
+    "Step 7: Update .env.example (root) and backend/.env.example - Add: AI_IMAGE_ENABLED=true, AI_VIDEO_ENABLED=false, AI_IMAGE_MAX_PER_VIDEO=5, AI_VIDEO_MAX_PER_VIDEO=3, AI_IMAGE_QUALITY=standard, AI_IMAGE_SIZE=1792x1024, REPLICATE_API_TOKEN=your-replicate-token",
+    "Step 8: Add tests in backend/tests/test_ai_providers.py - Test AIGenerationSettings schema validation (valid values, boundary values). Test AIImageProvider.is_configured() returns True/False based on settings. Test AIVideoProvider.is_configured() returns True/False based on settings. Test that the new /api/videos/ai-settings endpoint returns expected defaults. Use monkeypatch to mock the OpenAI client for image generation tests."
+  ],
+  "acceptance_criteria": [
+    "AIImageProvider class exists in backend/app/services/ai_image_provider.py and extends MediaProvider",
+    "AIVideoProvider class exists in backend/app/services/ai_video_provider.py and extends MediaProvider",
+    "config.py has all new AI-related settings fields",
+    "schemas.py has AIGenerationSettings and AIGenerationStats models",
+    "AI providers are registered in the MediaProviderRegistry as the last providers (before text-on-background fallback)",
+    "source_media_for_scene respects AI generation limits from settings",
+    "GET /api/videos/ai-settings endpoint works",
+    ".env.example has new fields documented",
+    "Running pytest tests/ -v passes including new test file"
+  ],
+  "verification": [
+    "cd /projects/sandbox/abetVideos/backend && python -m pytest tests/ -v",
+    "cd /projects/sandbox/abetVideos/backend && python -c \"from app.services.ai_image_provider import AIImageProvider; print('AI Image Provider OK')\"",
+    "cd /projects/sandbox/abetVideos/backend && python -c \"from app.services.ai_video_provider import AIVideoProvider; print('AI Video Provider OK')\"",
+    "cd /projects/sandbox/abetVideos/backend && python -c \"from app.config import settings; print(f'ai_image_enabled={settings.ai_image_enabled}')\"" 
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     unsplash_access_key: str = ""
     freesound_api_key: str = ""
 
+    # AI generation settings
+    ai_image_enabled: bool = True
+    ai_video_enabled: bool = False
+    ai_image_max_per_video: int = 5
+    ai_video_max_per_video: int = 3
+    ai_image_quality: str = "standard"
+    ai_image_size: str = "1792x1024"
+    replicate_api_token: str = ""
+
     # Media caching
     media_cache_enabled: bool = True
 

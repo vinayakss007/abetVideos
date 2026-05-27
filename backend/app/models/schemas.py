@@ -222,6 +222,9 @@ class SourceMediaRequest(BaseModel):
 
     script: VideoScript
     preferred_type: Optional[MediaType] = None
+    ai_generation_settings: Optional["AIGenerationSettings"] = Field(
+        default=None, description="Optional AI generation settings"
+    )
 
 
 class SearchMediaRequest(BaseModel):
@@ -257,6 +260,55 @@ class GenerateFullRequest(BaseModel):
     audio_settings: Optional[AudioSettings] = Field(
         default=None, description="Optional audio processing settings"
     )
+    ai_generation_settings: Optional["AIGenerationSettings"] = Field(
+        default=None, description="Optional AI generation settings"
+    )
+
+
+# --- AI Generation schemas ---
+
+
+class AIImageSize(str, Enum):
+    """AI image size options."""
+
+    size_1024x1024 = "1024x1024"
+    size_1792x1024 = "1792x1024"
+    size_1024x1792 = "1024x1792"
+
+
+class AIImageQuality(str, Enum):
+    """AI image quality options."""
+
+    standard = "standard"
+    hd = "hd"
+
+
+class AIGenerationSettings(BaseModel):
+    """AI generation configuration settings."""
+
+    ai_image_enabled: bool = Field(default=True, description="Enable AI image generation fallback")
+    ai_video_enabled: bool = Field(default=False, description="Enable AI video generation fallback")
+    ai_image_max_per_video: int = Field(
+        default=5, ge=0, le=20, description="Max AI-generated images per video"
+    )
+    ai_video_max_per_video: int = Field(
+        default=3, ge=0, le=10, description="Max AI-generated videos per video"
+    )
+    ai_image_quality: AIImageQuality = Field(
+        default=AIImageQuality.standard, description="AI image quality"
+    )
+    ai_image_size: AIImageSize = Field(
+        default=AIImageSize.size_1792x1024, description="AI image size"
+    )
+
+
+class AIGenerationStats(BaseModel):
+    """Statistics about AI generation usage in a video."""
+
+    ai_images_generated: int = Field(default=0, description="Number of AI images generated")
+    ai_videos_generated: int = Field(default=0, description="Number of AI videos generated")
+    ai_image_limit: int = Field(default=5, description="AI image generation limit")
+    ai_video_limit: int = Field(default=3, description="AI video generation limit")
 
 
 # --- Editor schemas ---

@@ -1,0 +1,7 @@
+{
+  "task_id": "task-ai-media-generation-fallback",
+  "task_description": "Add AI-powered image and video generation as fallback when stock footage APIs fail. Includes AI Image Provider (DALL-E 3 via OpenRouter), AI Video Provider (Replicate/Stable Video Diffusion), frontend settings panel for controlling AI generation limits, and live AI generation stats counter during video creation.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

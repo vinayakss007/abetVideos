@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add frontend AI Generation Settings panel and integrate it into the video creation flow with live AI generation counter display",
+  "status": "pending",
+  "steps": [
+    "Step 1: Update frontend/src/types/index.ts - Add AIGenerationSettings interface with fields: ai_image_enabled (boolean), ai_video_enabled (boolean), ai_image_max_per_video (number), ai_video_max_per_video (number), ai_image_quality ('standard' | 'hd'), ai_image_size ('1024x1024' | '1792x1024' | '1024x1792'). Add AIGenerationStats interface with fields: ai_images_generated (number), ai_videos_generated (number), ai_image_limit (number), ai_video_limit (number). Update VideoRequest to include ai_generation_settings?: AIGenerationSettings. Update GenerateFullRequest (if exists) similarly.",
+    "Step 2: Update frontend/src/api/client.ts - Add getAISettings() function that calls GET /api/videos/ai-settings and returns AIGenerationSettings. Update the sourceMedia function to accept optional ai_generation_settings. Update the generateScript/assembleVideo functions if needed to pass through settings.",
+    "Step 3: Create frontend/src/components/AIGenerationSettings.tsx - Build a collapsible settings panel following the exact pattern of QualitySettings.tsx. Include: (1) Toggle for 'Enable AI Image Fallback' with a switch/checkbox, (2) Toggle for 'Enable AI Video Fallback' with a switch/checkbox, (3) Slider for 'Max AI Images per Video' (0-20, default 5), (4) Slider for 'Max AI Videos per Video' (0-10, default 3), (5) Button group for AI image quality (Standard/HD), (6) Button group for AI image size (1024x1024, 1792x1024 landscape, 1024x1792 portrait). Use lucide-react icons (Wand2 or Bot for the section icon). Use the same Tailwind classes and color scheme as QualitySettings.tsx.",
+    "Step 4: Update frontend/src/components/TopicInput.tsx - Import and add the AIGenerationSettings component below the AudioSettings section. Add state for aiSettings with sensible defaults (ai_image_enabled: true, ai_video_enabled: false, ai_image_max_per_video: 5, ai_video_max_per_video: 3, ai_image_quality: 'standard', ai_image_size: '1792x1024'). Pass aiSettings in the onSubmit handler as part of the VideoRequest. Optionally, fetch default settings from the API on mount using the getAISettings function.",
+    "Step 5: Update frontend/src/hooks/useVideoGeneration.ts - Pass ai_generation_settings through to the source-media API call and generate-full SSE call. Track AIGenerationStats from the SSE response events. Expose aiStats in the hook return value.",
+    "Step 6: Create a small AIGenerationCounter component or add to GenerationProgress.tsx - During generation (when step is 'sourcing_media' or 'assembling'), display a counter showing 'AI Generated: X/Y images, A/B videos' using the aiStats from the hook. Style it with a subtle badge/pill using the existing design patterns (bg-purple-600/10 border-purple-500/30 for AI-related items to distinguish from stock).",
+    "Step 7: Update frontend/src/pages/CreateVideo.tsx - Wire up the aiStats display during the generation progress step. Show the AI generation counter in the GenerationProgress area when AI generation is active."
+  ],
+  "acceptance_criteria": [
+    "AIGenerationSettings component renders as a collapsible panel with all 6 controls",
+    "Settings panel appears in the TopicInput form below Audio Settings",
+    "Toggling AI image/video enabled updates the state correctly",
+    "Sliders for max images/videos work within bounds (0-20 and 0-10)",
+    "AI settings are passed in the video generation request to the backend",
+    "AI generation counter displays during media sourcing step showing current/max counts",
+    "Frontend builds without TypeScript errors: npm run build succeeds"
+  ],
+  "verification": [
+    "cd /projects/sandbox/abetVideos/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

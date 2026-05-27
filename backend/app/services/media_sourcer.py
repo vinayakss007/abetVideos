@@ -822,6 +822,8 @@ async def source_media_for_scene(
     output_dir: Path,
     client: httpx.AsyncClient,
     preferred_type: Optional[MediaType] = None,
+    ai_generation_settings=None,
+    ai_stats: Optional[dict] = None,
 ) -> SceneMedia:
     """Source media for a single scene with fallback logic.
 
@@ -829,6 +831,8 @@ async def source_media_for_scene(
     1. Video sources (Pexels videos, Pixabay videos)
     2. Image sources (Unsplash, Pexels photos, Pixabay images)
     3. GIFs (Giphy)
+    3.5a. AI image generation (if enabled and under limit)
+    3.5b. AI video generation (if enabled and under limit)
     4. Text-on-background fallback using PIL
     """
     keywords = await ai_extract_keywords(visual_description)
@@ -863,6 +867,44 @@ async def source_media_for_scene(
         items = await search_giphy(keywords, client)
         media_items.extend(items)
 
+    # Step 3.5: AI generation fallback (before text-on-background)
+    if not media_items and ai_generation_settings is not None and ai_stats is not None:
+        # Step 3.5a: AI image generation
+        if (
+            ai_generation_settings.ai_image_enabled
+            and ai_stats.get("ai_images_generated", 0) < ai_generation_settings.ai_image_max_per_video
+        ):
+            from app.services.ai_image_provider import AIImageProvider
+
+            ai_image_provider = AIImageProvider(
+                quality=ai_generation_settings.ai_image_quality.value
+                if hasattr(ai_generation_settings.ai_image_quality, "value")
+                else ai_generation_settings.ai_image_quality,
+                size=ai_generation_settings.ai_image_size.value
+                if hasattr(ai_generation_settings.ai_image_size, "value")
+                else ai_generation_settings.ai_image_size,
+            )
+            if ai_image_provider.is_configured():
+                items = await ai_image_provider.search(visual_description, client)
+                if items:
+                    media_items.extend(items)
+                    ai_stats["ai_images_generated"] = ai_stats.get("ai_images_generated", 0) + 1
+
+        # Step 3.5b: AI video generation
+        if (
+            not media_items
+            and ai_generation_settings.ai_video_enabled
+            and ai_stats.get("ai_videos_generated", 0) < ai_generation_settings.ai_video_max_per_video
+        ):
+            from app.services.ai_video_provider import AIVideoProvider
+
+            ai_video_provider = AIVideoProvider()
+            if ai_video_provider.is_configured():
+                items = await ai_video_provider.search(visual_description, client)
+                if items:
+                    media_items.extend(items)
+                    ai_stats["ai_videos_generated"] = ai_stats.get("ai_videos_generated", 0) + 1
+
     # Apply quality filter
     media_items = filter_by_quality(media_items)
 
@@ -884,6 +926,7 @@ async def source_media(
     script: VideoScript,
     preferred_type: Optional[MediaType] = None,
     output_dir: Optional[str] = None,
+    ai_generation_settings=None,
 ) -> list[SceneMedia]:
     """Source media for all scenes in a script concurrently.
 
@@ -895,6 +938,7 @@ async def source_media(
         script: The video script.
         preferred_type: Optional preferred media type.
         output_dir: Optional output directory override.
+        ai_generation_settings: Optional AI generation settings for fallback.
 
     Returns:
         List of SceneMedia with sourced items per scene.
@@ -902,6 +946,9 @@ async def source_media(
     base_dir = Path(output_dir or settings.output_dir)
     media_dir = base_dir / "media" / str(uuid.uuid4())[:8]
     media_dir.mkdir(parents=True, exist_ok=True)
+
+    # Shared AI generation stats tracker
+    ai_stats: dict = {"ai_images_generated": 0, "ai_videos_generated": 0}
 
     semaphore = asyncio.Semaphore(5)
 
@@ -913,11 +960,25 @@ async def source_media(
                 output_dir=media_dir,
                 client=client,
                 preferred_type=preferred_type,
+                ai_generation_settings=ai_generation_settings,
+                ai_stats=ai_stats,
             )
 
     async with httpx.AsyncClient() as client:
-        tasks = [_limited_source(scene) for scene in script.scenes]
-        results = await asyncio.gather(*tasks)
+        # Process scenes sequentially to properly track AI generation limits
+        if ai_generation_settings is not None:
+            results = []
+            for scene in script.scenes:
+                result = await _limited_source(scene)
+                results.append(result)
+        else:
+            tasks = [_limited_source(scene) for scene in script.scenes]
+            results = await asyncio.gather(*tasks)
 
     logger.info(f"Media sourcing complete: {len(results)} scenes processed")
+    if ai_generation_settings is not None:
+        logger.info(
+            f"AI generation stats: {ai_stats['ai_images_generated']} images, "
+            f"{ai_stats['ai_videos_generated']} videos"
+        )
     return list(results)

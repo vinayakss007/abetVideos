@@ -13,6 +13,8 @@ import httpx
 
 from app.config import settings
 from app.models.schemas import (
+    AIGenerationSettings,
+    AIGenerationStats,
     AssembleVideoRequest,
     GenerateFullRequest,
     GenerateScriptRequest,
@@ -42,6 +44,22 @@ def _safe_error_detail(prefix: str, exc: Exception) -> str:
     full message, which may contain file paths, API keys, or stack info.
     """
     return f"{prefix}: {type(exc).__name__}"
+
+
+@router.get("/ai-settings")
+async def get_ai_settings():
+    """Return the default AI generation settings from config.
+
+    Returns the server-side defaults so the frontend can display them.
+    """
+    return AIGenerationSettings(
+        ai_image_enabled=settings.ai_image_enabled,
+        ai_video_enabled=settings.ai_video_enabled,
+        ai_image_max_per_video=settings.ai_image_max_per_video,
+        ai_video_max_per_video=settings.ai_video_max_per_video,
+        ai_image_quality=settings.ai_image_quality,
+        ai_image_size=settings.ai_image_size,
+    )
 
 
 @router.get("/providers")
@@ -104,12 +122,14 @@ async def source_video_media(request: SourceMediaRequest):
     """Source media (videos, images, GIFs) for a video script.
 
     Searches Pexels, Pixabay, and Giphy APIs for relevant media
-    based on each scene's visual description.
+    based on each scene's visual description. Falls back to AI generation
+    if enabled and stock sources return no results.
     """
     try:
         results = await source_media(
             script=request.script,
             preferred_type=request.preferred_type,
+            ai_generation_settings=request.ai_generation_settings,
         )
         return results
     except Exception as e:
@@ -254,7 +274,10 @@ async def generate_full_video(request: GenerateFullRequest):
             # Step 3: Media sourcing
             current_stage = "media_sourcing"
             yield _sse_event("media_sourcing", 50, "Sourcing media for scenes...")
-            scene_media = await source_media(script=script)
+            scene_media = await source_media(
+                script=script,
+                ai_generation_settings=request.ai_generation_settings,
+            )
             yield _sse_event(
                 "media_sourcing",
                 75,
