@@ -255,6 +255,18 @@ provider_registry.register(GiphyProvider())
 provider_registry.register(UnsplashProvider())
 provider_registry.register(FreesoundProvider())
 
+
+def _register_ai_providers() -> None:
+    """Register AI providers lazily to avoid circular imports."""
+    from app.services.ai_image_provider import AIImageProvider
+    from app.services.ai_video_provider import AIVideoProvider
+
+    provider_registry.register(AIImageProvider())
+    provider_registry.register(AIVideoProvider())
+
+
+_register_ai_providers()
+
 # Module-level lock for cache manifest read-modify-write operations
 _cache_manifest_lock = asyncio.Lock()
 
@@ -927,7 +939,7 @@ async def source_media(
     preferred_type: Optional[MediaType] = None,
     output_dir: Optional[str] = None,
     ai_generation_settings=None,
-) -> list[SceneMedia]:
+) -> tuple[list[SceneMedia], dict]:
     """Source media for all scenes in a script concurrently.
 
     Uses asyncio.gather with a shared HTTP client and a semaphore to
@@ -981,4 +993,4 @@ async def source_media(
             f"AI generation stats: {ai_stats['ai_images_generated']} images, "
             f"{ai_stats['ai_videos_generated']} videos"
         )
-    return list(results)
+    return list(results), ai_stats

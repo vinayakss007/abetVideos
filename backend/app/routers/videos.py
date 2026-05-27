@@ -126,7 +126,7 @@ async def source_video_media(request: SourceMediaRequest):
     if enabled and stock sources return no results.
     """
     try:
-        results = await source_media(
+        results, ai_stats = await source_media(
             script=request.script,
             preferred_type=request.preferred_type,
             ai_generation_settings=request.ai_generation_settings,
@@ -274,15 +274,19 @@ async def generate_full_video(request: GenerateFullRequest):
             # Step 3: Media sourcing
             current_stage = "media_sourcing"
             yield _sse_event("media_sourcing", 50, "Sourcing media for scenes...")
-            scene_media = await source_media(
+            scene_media, ai_stats = await source_media(
                 script=script,
                 ai_generation_settings=request.ai_generation_settings,
             )
+            media_sourcing_data = {
+                "scenes": [sm.model_dump() for sm in scene_media],
+                "ai_generation_stats": ai_stats,
+            }
             yield _sse_event(
                 "media_sourcing",
                 75,
                 f"Media sourced for {len(scene_media)} scenes",
-                [sm.model_dump() for sm in scene_media],
+                media_sourcing_data,
             )
 
             # Step 4: Video assembly
@@ -302,11 +306,13 @@ async def generate_full_video(request: GenerateFullRequest):
             )
 
             # Step 5: Complete
+            complete_data = result.model_dump()
+            complete_data["ai_generation_stats"] = ai_stats
             yield _sse_event(
                 "complete",
                 100,
                 "Video generation complete!",
-                result.model_dump(),
+                complete_data,
             )
         except Exception as e:
             logger.error(f"Full pipeline failed at stage '{current_stage}': {e}")

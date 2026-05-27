@@ -166,7 +166,7 @@ class TestSourceMediaEndpoint:
         with patch(
             "app.routers.videos.source_media",
             new_callable=AsyncMock,
-            return_value=mock_scene_media,
+            return_value=(mock_scene_media, {"ai_images_generated": 0, "ai_videos_generated": 0}),
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -228,7 +228,7 @@ class TestGenerateFullSSE:
         ), patch(
             "app.routers.videos.source_media",
             new_callable=AsyncMock,
-            return_value=mock_scene_media,
+            return_value=(mock_scene_media, {"ai_images_generated": 0, "ai_videos_generated": 0}),
         ), patch(
             "app.routers.videos.assemble_video",
             new_callable=AsyncMock,

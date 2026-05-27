@@ -27,6 +27,16 @@ class AIImageProvider(MediaProvider):
     def __init__(self, quality: str = "standard", size: str = "1792x1024") -> None:
         self.quality = quality
         self.size = size
+        self._openai_client: AsyncOpenAI | None = None
+
+    def _get_openai_client(self) -> AsyncOpenAI:
+        """Return a cached AsyncOpenAI client, creating it on first use."""
+        if self._openai_client is None:
+            self._openai_client = AsyncOpenAI(
+                api_key=settings.openai_api_key,
+                base_url=settings.openai_base_url,
+            )
+        return self._openai_client
 
     def is_configured(self) -> bool:
         """Check if the OpenAI API key is configured."""
@@ -49,10 +59,7 @@ class AIImageProvider(MediaProvider):
             return []
 
         try:
-            openai_client = AsyncOpenAI(
-                api_key=settings.openai_api_key,
-                base_url=settings.openai_base_url,
-            )
+            openai_client = self._get_openai_client()
 
             response = await openai_client.images.generate(
                 model="dall-e-3",
