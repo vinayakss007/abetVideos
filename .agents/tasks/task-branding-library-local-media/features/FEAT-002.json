@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Frontend: Library page, Branding settings UI, navigation update, and API client integration",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1: Add TypeScript types to frontend/src/types/index.ts: LibraryItem (id, filename, original_filename, category, labels, description, file_path, created_at, file_size), LibraryCategory type ('music'|'image'|'video'), BrandingConfig (id, image_path, position, size_percent, opacity, enabled), BrandingPosition type.",
     "Step 2: Add API client functions to frontend/src/api/client.ts: uploadLibraryItem(file, category, labels, description), getLibraryItems(category?, search?), deleteLibraryItem(id), searchLibrary(query), uploadBranding(file, position, size_percent, opacity), getBranding(), updateBranding(config), deleteBranding(). Use FormData for file uploads.",

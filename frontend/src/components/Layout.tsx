@@ -1,5 +1,5 @@
 import { Link, Outlet } from 'react-router-dom';
-import { Video, Sparkles } from 'lucide-react';
+import { Video, Sparkles, FolderOpen } from 'lucide-react';
 import ConnectedSources from './ConnectedSources';
 
 export default function Layout() {
@@ -18,6 +18,13 @@ export default function Layout() {
             </Link>
             <nav className="flex items-center gap-3">
               <ConnectedSources />
+              <Link
+                to="/library"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded-lg transition-colors font-medium text-sm"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Library
+              </Link>
               <Link
                 to="/create"
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-colors font-medium text-sm"

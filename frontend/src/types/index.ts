@@ -41,6 +41,31 @@ export interface AIGenerationStats {
   ai_video_limit: number;
 }
 
+export type LibraryCategory = 'music' | 'image' | 'video';
+
+export interface LibraryItem {
+  id: string;
+  filename: string;
+  original_filename: string;
+  category: LibraryCategory;
+  labels: string[];
+  description: string;
+  file_path: string;
+  created_at: string;
+  file_size: number;
+}
+
+export type BrandingPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center';
+
+export interface BrandingConfig {
+  id: string;
+  image_path: string;
+  position: BrandingPosition;
+  size_percent: number;
+  opacity: number;
+  enabled: boolean;
+}
+
 export interface VideoRequest {
   topic: string;
   duration_minutes: number;
@@ -48,6 +73,7 @@ export interface VideoRequest {
   quality_settings?: VideoQualitySettings;
   audio_settings?: AudioSettings;
   ai_generation_settings?: AIGenerationSettings;
+  branding_config?: BrandingConfig | null;
 }
 
 export interface ScriptScene {

@@ -95,6 +95,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
         script,
         tts_results: audio,
         scene_media: sceneMedia,
+        branding_config: lastRequestRef.current?.branding_config ?? undefined,
       });
       setVideoResult(result);
       setStep('complete');

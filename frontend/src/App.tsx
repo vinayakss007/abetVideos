@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage';
 import CreateVideo from './pages/CreateVideo';
 
 const EditorPage = lazy(() => import('./pages/EditorPage'));
+const LibraryPage = lazy(() => import('./pages/LibraryPage'));
 
 function App() {
   return (
@@ -24,6 +25,11 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/create" element={<CreateVideo />} />
+          <Route path="/library" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-gray-400">Loading Library...</div></div>}>
+              <LibraryPage />
+            </Suspense>
+          } />
           <Route path="/edit/:videoId" element={
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-gray-400">Loading Editor...</div></div>}>
               <EditorPage />

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Sparkles, Clock, Palette } from 'lucide-react';
-import type { VideoRequest, VideoQualitySettings, AudioSettings as AudioSettingsType, AIGenerationSettings as AIGenerationSettingsType } from '../types';
+import type { VideoRequest, VideoQualitySettings, AudioSettings as AudioSettingsType, AIGenerationSettings as AIGenerationSettingsType, BrandingConfig } from '../types';
 import QualitySettings from './QualitySettings';
 import AudioSettings from './AudioSettings';
 import AIGenerationSettings from './AIGenerationSettings';
+import BrandingSettings from './BrandingSettings';
 
 interface TopicInputProps {
   onSubmit: (request: VideoRequest) => void;
@@ -59,6 +60,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
   const [qualitySettings, setQualitySettings] = useState<VideoQualitySettings>(DEFAULT_QUALITY_SETTINGS);
   const [audioSettings, setAudioSettings] = useState<AudioSettingsType>(DEFAULT_AUDIO_SETTINGS);
   const [aiSettings, setAiSettings] = useState<AIGenerationSettingsType>(DEFAULT_AI_GENERATION_SETTINGS);
+  const [brandingConfig, setBrandingConfig] = useState<BrandingConfig | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +72,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
       quality_settings: qualitySettings,
       audio_settings: audioSettings,
       ai_generation_settings: aiSettings,
+      branding_config: brandingConfig,
     });
   };
 
@@ -141,6 +144,8 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
       <AudioSettings settings={audioSettings} onChange={setAudioSettings} />
 
       <AIGenerationSettings settings={aiSettings} onChange={setAiSettings} />
+
+      <BrandingSettings config={brandingConfig} onChange={setBrandingConfig} />
 
       <button
         type="submit"

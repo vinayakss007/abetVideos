@@ -1,6 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult, MediaItem, MediaProviderStatus, SceneMetadata, EditInstruction, PreviewFrame, AIGenerationSettings } from '../types';
+import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult, MediaItem, MediaProviderStatus, SceneMetadata, EditInstruction, PreviewFrame, AIGenerationSettings, LibraryItem, BrandingConfig } from '../types';
 
 const apiClient = axios.create({
   baseURL: '/api',
@@ -50,6 +50,7 @@ export async function assembleVideo(data: {
   format?: string;
   quality_settings?: import('../types').VideoQualitySettings;
   audio_settings?: import('../types').AudioSettings;
+  branding_config?: import('../types').BrandingConfig | null;
 }): Promise<VideoResult> {
   const response = await apiClient.post<VideoResult>('/videos/assemble', {
     script: data.script,
@@ -58,6 +59,7 @@ export async function assembleVideo(data: {
     format: data.format ?? 'landscape',
     quality_settings: data.quality_settings ?? null,
     audio_settings: data.audio_settings ?? null,
+    branding_config: data.branding_config ?? null,
   });
   return response.data;
 }
@@ -98,6 +100,67 @@ export async function getPreviewFrame(videoId: string, timestamp: number): Promi
 export async function getAISettings(): Promise<AIGenerationSettings> {
   const response = await apiClient.get<AIGenerationSettings>('/videos/ai-settings');
   return response.data;
+}
+
+// Library API
+export async function uploadLibraryItem(file: File, category: string, labels: string, description: string): Promise<LibraryItem> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('category', category);
+  formData.append('labels', labels);
+  formData.append('description', description);
+  const response = await apiClient.post<LibraryItem>('/library/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+}
+
+export async function getLibraryItems(category?: string, search?: string): Promise<LibraryItem[]> {
+  const params: Record<string, string> = {};
+  if (category) params.category = category;
+  if (search) params.search = search;
+  const response = await apiClient.get<LibraryItem[]>('/library', { params });
+  return response.data;
+}
+
+export async function deleteLibraryItem(id: string): Promise<void> {
+  await apiClient.delete(`/library/${id}`);
+}
+
+export async function searchLibrary(query: string): Promise<LibraryItem[]> {
+  const response = await apiClient.get<LibraryItem[]>('/library/search', { params: { query } });
+  return response.data;
+}
+
+// Branding API
+export async function uploadBranding(file: File, position: string, sizePercent: number, opacity: number): Promise<BrandingConfig> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('position', position);
+  formData.append('size_percent', sizePercent.toString());
+  formData.append('opacity', opacity.toString());
+  const response = await apiClient.post<BrandingConfig>('/branding/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+}
+
+export async function getBranding(): Promise<BrandingConfig | null> {
+  try {
+    const response = await apiClient.get<BrandingConfig>('/branding');
+    return response.data;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateBranding(config: { position?: string; size_percent?: number; opacity?: number; enabled?: boolean }): Promise<BrandingConfig> {
+  const response = await apiClient.put<BrandingConfig>('/branding', config);
+  return response.data;
+}
+
+export async function deleteBranding(): Promise<void> {
+  await apiClient.delete('/branding');
 }
 
 export default apiClient;
