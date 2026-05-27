@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add frontend AI Generation Settings panel and integrate it into the video creation flow with live AI generation counter display",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1: Update frontend/src/types/index.ts - Add AIGenerationSettings interface with fields: ai_image_enabled (boolean), ai_video_enabled (boolean), ai_image_max_per_video (number), ai_video_max_per_video (number), ai_image_quality ('standard' | 'hd'), ai_image_size ('1024x1024' | '1792x1024' | '1024x1792'). Add AIGenerationStats interface with fields: ai_images_generated (number), ai_videos_generated (number), ai_image_limit (number), ai_video_limit (number). Update VideoRequest to include ai_generation_settings?: AIGenerationSettings. Update GenerateFullRequest (if exists) similarly.",
     "Step 2: Update frontend/src/api/client.ts - Add getAISettings() function that calls GET /api/videos/ai-settings and returns AIGenerationSettings. Update the sourceMedia function to accept optional ai_generation_settings. Update the generateScript/assembleVideo functions if needed to pass through settings.",

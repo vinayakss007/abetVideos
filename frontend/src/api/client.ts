@@ -1,6 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult, MediaItem, MediaProviderStatus, SceneMetadata, EditInstruction, PreviewFrame } from '../types';
+import type { VideoRequest, VideoScript, SceneMedia, TTSResult, VideoResult, MediaItem, MediaProviderStatus, SceneMetadata, EditInstruction, PreviewFrame, AIGenerationSettings } from '../types';
 
 const apiClient = axios.create({
   baseURL: '/api',
@@ -35,8 +35,11 @@ export async function generateTTS(script: VideoScript, voice?: string): Promise<
   return response.data;
 }
 
-export async function sourceMedia(script: VideoScript): Promise<SceneMedia[]> {
-  const response = await apiClient.post<SceneMedia[]>('/videos/source-media', { script });
+export async function sourceMedia(script: VideoScript, ai_generation_settings?: AIGenerationSettings): Promise<SceneMedia[]> {
+  const response = await apiClient.post<SceneMedia[]>('/videos/source-media', {
+    script,
+    ai_generation_settings: ai_generation_settings ?? null,
+  });
   return response.data;
 }
 
@@ -89,6 +92,11 @@ export async function submitEdit(videoId: string, instructions: EditInstruction)
 
 export async function getPreviewFrame(videoId: string, timestamp: number): Promise<PreviewFrame> {
   const response = await apiClient.post<PreviewFrame>(`/videos/${videoId}/preview-frame`, { timestamp });
+  return response.data;
+}
+
+export async function getAISettings(): Promise<AIGenerationSettings> {
+  const response = await apiClient.get<AIGenerationSettings>('/videos/ai-settings');
   return response.data;
 }
 

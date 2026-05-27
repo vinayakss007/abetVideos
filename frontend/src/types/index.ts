@@ -25,12 +25,29 @@ export interface AudioSettings {
   generate_subtitles: boolean;
 }
 
+export interface AIGenerationSettings {
+  ai_image_enabled: boolean;
+  ai_video_enabled: boolean;
+  ai_image_max_per_video: number;
+  ai_video_max_per_video: number;
+  ai_image_quality: 'standard' | 'hd';
+  ai_image_size: '1024x1024' | '1792x1024' | '1024x1792';
+}
+
+export interface AIGenerationStats {
+  ai_images_generated: number;
+  ai_videos_generated: number;
+  ai_image_limit: number;
+  ai_video_limit: number;
+}
+
 export interface VideoRequest {
   topic: string;
   duration_minutes: number;
   style: string;
   quality_settings?: VideoQualitySettings;
   audio_settings?: AudioSettings;
+  ai_generation_settings?: AIGenerationSettings;
 }
 
 export interface ScriptScene {

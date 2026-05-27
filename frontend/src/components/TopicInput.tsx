@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Sparkles, Clock, Palette } from 'lucide-react';
-import type { VideoRequest, VideoQualitySettings, AudioSettings as AudioSettingsType } from '../types';
+import type { VideoRequest, VideoQualitySettings, AudioSettings as AudioSettingsType, AIGenerationSettings as AIGenerationSettingsType } from '../types';
 import QualitySettings from './QualitySettings';
 import AudioSettings from './AudioSettings';
+import AIGenerationSettings from './AIGenerationSettings';
 
 interface TopicInputProps {
   onSubmit: (request: VideoRequest) => void;
@@ -24,6 +25,15 @@ const DEFAULT_AUDIO_SETTINGS: AudioSettingsType = {
   background_music_volume: 0.15,
   enable_ducking: true,
   generate_subtitles: false,
+};
+
+const DEFAULT_AI_GENERATION_SETTINGS: AIGenerationSettingsType = {
+  ai_image_enabled: true,
+  ai_video_enabled: false,
+  ai_image_max_per_video: 5,
+  ai_video_max_per_video: 3,
+  ai_image_quality: 'standard',
+  ai_image_size: '1792x1024',
 };
 
 const DURATION_OPTIONS = [
@@ -48,6 +58,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
   const [style, setStyle] = useState('educational');
   const [qualitySettings, setQualitySettings] = useState<VideoQualitySettings>(DEFAULT_QUALITY_SETTINGS);
   const [audioSettings, setAudioSettings] = useState<AudioSettingsType>(DEFAULT_AUDIO_SETTINGS);
+  const [aiSettings, setAiSettings] = useState<AIGenerationSettingsType>(DEFAULT_AI_GENERATION_SETTINGS);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +69,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
       style,
       quality_settings: qualitySettings,
       audio_settings: audioSettings,
+      ai_generation_settings: aiSettings,
     });
   };
 
@@ -127,6 +139,8 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
       <QualitySettings settings={qualitySettings} onChange={setQualitySettings} />
 
       <AudioSettings settings={audioSettings} onChange={setAudioSettings} />
+
+      <AIGenerationSettings settings={aiSettings} onChange={setAiSettings} />
 
       <button
         type="submit"

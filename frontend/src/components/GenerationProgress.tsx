@@ -1,8 +1,9 @@
-import { Loader2, Mic, Film, Clapperboard, CheckCircle2 } from 'lucide-react';
-import type { GenerationStep } from '../types';
+import { Loader2, Mic, Film, Clapperboard, CheckCircle2, Wand2 } from 'lucide-react';
+import type { GenerationStep, AIGenerationStats } from '../types';
 
 interface GenerationProgressProps {
   step: GenerationStep;
+  aiStats?: AIGenerationStats | null;
 }
 
 const STEPS = [
@@ -11,7 +12,7 @@ const STEPS = [
   { key: 'complete', label: 'Complete', icon: CheckCircle2 },
 ] as const;
 
-export default function GenerationProgress({ step }: GenerationProgressProps) {
+export default function GenerationProgress({ step, aiStats }: GenerationProgressProps) {
   const getCurrentStepIndex = () => {
     return STEPS.findIndex((s) => s.key === step);
   };
@@ -81,6 +82,20 @@ export default function GenerationProgress({ step }: GenerationProgressProps) {
           style={{ width: `${Math.max(((currentIndex + 1) / STEPS.length) * 100, 10)}%` }}
         />
       </div>
+
+      {aiStats && (aiStats.ai_image_limit > 0 || aiStats.ai_video_limit > 0) && (
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-600/10 border border-purple-500/30">
+            <Wand2 className="w-3.5 h-3.5 text-purple-400" />
+            <span className="text-sm text-purple-300">
+              AI Generated: {aiStats.ai_images_generated}/{aiStats.ai_image_limit} images
+              {aiStats.ai_video_limit > 0 && (
+                <>, {aiStats.ai_videos_generated}/{aiStats.ai_video_limit} videos</>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

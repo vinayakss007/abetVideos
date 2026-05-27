@@ -6,6 +6,7 @@ import type {
   TTSResult,
   VideoResult,
   GenerationStep,
+  AIGenerationStats,
 } from '../types';
 import * as api from '../api/client';
 
@@ -24,6 +25,7 @@ interface UseVideoGenerationReturn {
   videoResult: VideoResult | null;
   error: string | null;
   sseProgress: SSEProgress | null;
+  aiStats: AIGenerationStats | null;
   handleGenerateScript: (request: VideoRequest) => Promise<void>;
   handleUpdateScript: (script: VideoScript) => void;
   handleConfirmScript: () => Promise<void>;
@@ -42,12 +44,15 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
   const [videoResult, setVideoResult] = useState<VideoResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sseProgress, setSSEProgress] = useState<SSEProgress | null>(null);
+  const [aiStats, setAIStats] = useState<AIGenerationStats | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastRequestRef = useRef<VideoRequest | null>(null);
 
   const handleGenerateScript = useCallback(async (request: VideoRequest) => {
     try {
       setStep('generating_script');
       setError(null);
+      lastRequestRef.current = request;
       const generatedScript = await api.generateScript(request);
       setScript(generatedScript);
       setStep('editing_script');
@@ -67,7 +72,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
     try {
       setStep('sourcing_media');
       setError(null);
-      const media = await api.sourceMedia(script);
+      const media = await api.sourceMedia(script, lastRequestRef.current?.ai_generation_settings);
       setSceneMedia(media);
       setStep('editing_media');
     } catch (err) {
@@ -105,6 +110,8 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
       setStep('generating_script');
       setError(null);
       setSSEProgress(null);
+      setAIStats(null);
+      lastRequestRef.current = request;
 
       abortRef.current = new AbortController();
 
@@ -155,12 +162,18 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
                   break;
                 case 'media_sourcing':
                   setStep('sourcing_media');
+                  if (event.data && typeof event.data === 'object' && 'ai_generation_stats' in event.data) {
+                    setAIStats((event.data as { ai_generation_stats: AIGenerationStats }).ai_generation_stats);
+                  }
                   break;
                 case 'video_assembly':
                   setStep('assembling');
                   break;
                 case 'complete':
-                  if (event.data) {
+                  if (event.data && typeof event.data === 'object') {
+                    if ('ai_generation_stats' in event.data) {
+                      setAIStats((event.data as { ai_generation_stats: AIGenerationStats }).ai_generation_stats);
+                    }
                     setVideoResult(event.data as VideoResult);
                   }
                   setStep('complete');
@@ -196,6 +209,8 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
     setAudioResults([]);
     setVideoResult(null);
     setSSEProgress(null);
+    setAIStats(null);
+    lastRequestRef.current = null;
   }, []);
 
   return {
@@ -206,6 +221,7 @@ export function useVideoGeneration(): UseVideoGenerationReturn {
     videoResult,
     error,
     sseProgress,
+    aiStats,
     handleGenerateScript,
     handleUpdateScript,
     handleConfirmScript,

@@ -33,6 +33,7 @@ export default function CreateVideo() {
     sceneMedia,
     videoResult,
     error,
+    aiStats,
     handleGenerateScript,
     handleUpdateScript,
     handleConfirmScript,
@@ -123,7 +124,7 @@ export default function CreateVideo() {
         )}
 
         {(step === 'generating_tts' || step === 'assembling') && (
-          <GenerationProgress step={step} />
+          <GenerationProgress step={step} aiStats={aiStats} />
         )}
 
         {step === 'complete' && videoResult && (
