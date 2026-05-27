@@ -23,6 +23,8 @@ from app.models.schemas import (
     AssembleVideoRequest,
     AudioSettings,
     BitratePreset,
+    BrandingConfig,
+    BrandingPosition,
     CodecPreset,
     FPSOption,
     MediaItem,
@@ -308,6 +310,7 @@ async def assemble_video(
     output_dir: Optional[str] = None,
     quality_settings: Optional[VideoQualitySettings] = None,
     audio_settings: Optional[AudioSettings] = None,
+    branding_config: Optional[BrandingConfig] = None,
 ) -> VideoResult:
     """Assemble the final video from script, audio, and media.
 
@@ -319,6 +322,7 @@ async def assemble_video(
         output_dir: Optional output directory override.
         quality_settings: Optional video quality settings for resolution, bitrate, etc.
         audio_settings: Optional audio processing settings.
+        branding_config: Optional branding overlay configuration.
 
     Returns:
         VideoResult with path to the assembled video.
@@ -430,6 +434,47 @@ async def assemble_video(
                 except Exception as e:
                     logger.warning(f"Subtitle generation failed: {e}")
                     subtitle_path = None
+
+        # Apply branding overlay if configured
+        if branding_config is not None and branding_config.enabled:
+            branding_image_path = branding_config.image_path
+            if branding_image_path and os.path.exists(branding_image_path):
+                try:
+                    branding_clip = ImageClip(branding_image_path, duration=final.duration)
+
+                    # Resize to size_percent of video width, maintaining aspect ratio
+                    target_width = int(width * branding_config.size_percent / 100.0)
+                    branding_clip = branding_clip.resized(width=target_width)
+
+                    # Set opacity
+                    branding_clip = branding_clip.with_opacity(branding_config.opacity)
+
+                    # Calculate position
+                    branding_w, branding_h = branding_clip.size
+                    margin = 20
+                    pos_map = {
+                        BrandingPosition.top_left: (margin, margin),
+                        BrandingPosition.top_right: (width - branding_w - margin, margin),
+                        BrandingPosition.bottom_left: (margin, height - branding_h - margin),
+                        BrandingPosition.bottom_right: (width - branding_w - margin, height - branding_h - margin),
+                        BrandingPosition.top_center: ((width - branding_w) // 2, margin),
+                        BrandingPosition.bottom_center: ((width - branding_w) // 2, height - branding_h - margin),
+                    }
+                    position = pos_map.get(
+                        branding_config.position,
+                        (width - branding_w - margin, height - branding_h - margin),
+                    )
+
+                    branding_clip = branding_clip.with_position(position)
+
+                    # Composite branding on top of the final video
+                    final = CompositeVideoClip(
+                        [final, branding_clip],
+                        size=(width, height),
+                    )
+                    logger.info(f"Branding overlay applied at {branding_config.position.value}")
+                except Exception as e:
+                    logger.warning(f"Failed to apply branding overlay: {e}")
 
         # Determine write parameters based on quality settings
         write_fps = 24

@@ -1,0 +1,7 @@
+{
+  "task_id": "task-branding-library-local-media",
+  "task_description": "Add branding overlay support, local media library with upload/labeling/search, and local-first media sourcing that checks the user's library before hitting external stock APIs.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

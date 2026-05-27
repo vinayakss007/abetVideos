@@ -1,0 +1,30 @@
+{
+  "project_type": "Full-stack AI video generation app - FastAPI backend + React/Vite/TypeScript frontend",
+  "language": "Python (backend), TypeScript (frontend)",
+  "build_system": "pip with pyproject.toml (backend), npm with vite (frontend)",
+  "test_framework": "pytest with asyncio (backend), vitest with testing-library (frontend)",
+  "build_command": "cd /projects/sandbox/abetVideos/frontend && npm run build",
+  "test_command": "cd /projects/sandbox/abetVideos/frontend && npm run test; cd /projects/sandbox/abetVideos/backend && python -m pytest tests/ -x 2>/dev/null || true",
+  "verification_instructions": "1. Install backend deps: pip install -e . in backend/ 2. Install frontend deps: npm install in frontend/ 3. Run frontend build: npm run build 4. Run frontend tests: npm run test 5. Run backend tests: pytest tests/",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "cd backend && pip install -e '.[dev]' && cd ../frontend && npm install",
+  "environment_constraints": "OPEN_INTERNET - full network access. Python 3.11, Node.js 22 available.",
+  "contribution_requirements": "No specific CONTRIBUTING.md found. Follow existing patterns in the codebase.",
+  "key_patterns": "Backend: FastAPI routers in backend/app/routers/, services in backend/app/services/, Pydantic models in backend/app/models/schemas.py, config in backend/app/config.py. MediaProvider ABC with registry pattern (register in media_sourcer.py). Frontend: React Router in App.tsx, Layout with nav in components/Layout.tsx, API client in api/client.ts, types in types/index.ts, pages in pages/, hooks in hooks/.",
+  "relevant_files": [
+    "backend/app/main.py",
+    "backend/app/config.py",
+    "backend/app/models/schemas.py",
+    "backend/app/services/media_sourcer.py",
+    "backend/app/services/video_assembler.py",
+    "backend/app/routers/videos.py",
+    "frontend/src/App.tsx",
+    "frontend/src/components/Layout.tsx",
+    "frontend/src/api/client.ts",
+    "frontend/src/types/index.ts",
+    "frontend/src/pages/CreateVideo.tsx",
+    "frontend/src/components/TopicInput.tsx",
+    "frontend/src/hooks/useVideoGeneration.ts"
+  ],
+  "directory_structure": "backend/app/routers/ - API route handlers; backend/app/services/ - business logic (video_assembler, media_sourcer, etc.); backend/app/models/ - Pydantic schemas; frontend/src/pages/ - page components; frontend/src/components/ - reusable UI; frontend/src/api/ - API client; frontend/src/hooks/ - custom hooks; frontend/src/types/ - TypeScript interfaces"
+}

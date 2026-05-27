@@ -249,6 +249,17 @@ class MediaProviderRegistry:
 
 # Global registry instance with all built-in providers
 provider_registry = MediaProviderRegistry()
+
+
+def _register_local_provider() -> None:
+    """Register the local library provider first (highest priority)."""
+    from app.services.local_media_provider import LocalMediaProvider
+
+    provider_registry.register(LocalMediaProvider())
+
+
+_register_local_provider()
+
 provider_registry.register(PexelsProvider())
 provider_registry.register(PixabayProvider())
 provider_registry.register(GiphyProvider())

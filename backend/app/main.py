@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routers import editor, health, videos
+from app.routers import branding, editor, health, library, videos
 
 # Configure logging
 logging.basicConfig(
@@ -37,6 +37,8 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(videos.router)
 app.include_router(editor.router)
+app.include_router(library.router)
+app.include_router(branding.router)
 
 
 @app.on_event("startup")
@@ -49,6 +51,16 @@ async def startup_event():
     videos_dir = output_path / "videos"
     videos_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/static/videos", StaticFiles(directory=str(videos_dir)), name="videos")
+
+    # Mount static files for local media library
+    library_dir = output_path / "library"
+    library_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static/library", StaticFiles(directory=str(library_dir)), name="library")
+
+    # Mount static files for branding images
+    branding_dir = output_path / "branding"
+    branding_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static/branding", StaticFiles(directory=str(branding_dir)), name="branding")
 
     # Serve frontend build at root if it exists (production single-container mode)
     frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"

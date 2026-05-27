@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Frontend: Library page, Branding settings UI, navigation update, and API client integration",
+  "status": "pending",
+  "steps": [
+    "Step 1: Add TypeScript types to frontend/src/types/index.ts: LibraryItem (id, filename, original_filename, category, labels, description, file_path, created_at, file_size), LibraryCategory type ('music'|'image'|'video'), BrandingConfig (id, image_path, position, size_percent, opacity, enabled), BrandingPosition type.",
+    "Step 2: Add API client functions to frontend/src/api/client.ts: uploadLibraryItem(file, category, labels, description), getLibraryItems(category?, search?), deleteLibraryItem(id), searchLibrary(query), uploadBranding(file, position, size_percent, opacity), getBranding(), updateBranding(config), deleteBranding(). Use FormData for file uploads.",
+    "Step 3: Create frontend/src/pages/LibraryPage.tsx - A full page with: (a) Upload section at top with file dropzone/picker, category selector (music/image/video), labels input (comma-separated tags), description field, upload button. (b) Filter/search bar with category tabs and search input. (c) Grid view of uploaded items showing: thumbnail/icon (image preview for images, video icon for videos, music icon for music), filename, labels as small tags, category badge, file size, delete button. Use Tailwind dark theme matching existing pages.",
+    "Step 4: Create frontend/src/components/BrandingSettings.tsx - A collapsible settings section (similar to QualitySettings.tsx pattern) with: (a) Upload branding image button/dropzone, (b) Position selector as a visual grid (6 positions), (c) Size slider (10%-50%), (d) Opacity slider (0.1-1.0), (e) Enable/disable toggle, (f) Preview showing approximate position on a mock video frame. This component should be included in the TopicInput.tsx form.",
+    "Step 5: Add 'Library' link to the navigation in frontend/src/components/Layout.tsx. Add it between the ConnectedSources and 'Create Video' button. Use the FolderOpen or Library icon from lucide-react.",
+    "Step 6: Add the /library route to frontend/src/App.tsx using lazy loading for LibraryPage (same pattern as EditorPage).",
+    "Step 7: Integrate BrandingSettings into the video creation flow: Add BrandingSettings component to TopicInput.tsx after AIGenerationSettings. Pass branding_config in the VideoRequest to the backend. Update types/index.ts VideoRequest to include optional branding_config.",
+    "Step 8: Update useVideoGeneration.ts hook to include branding_config from the request when calling assembleVideo."
+  ],
+  "acceptance_criteria": [
+    "Frontend builds without TypeScript errors (npm run build passes)",
+    "Library page is accessible at /library route",
+    "Library page shows upload form with file picker, category selector, labels input",
+    "Library page displays uploaded items in a grid with thumbnails, labels, and delete buttons",
+    "BrandingSettings component appears in the create video form",
+    "BrandingSettings allows selecting position, size, and opacity",
+    "Navigation bar includes a 'Library' link",
+    "Frontend vitest tests pass (npm run test)"
+  ],
+  "verification": [
+    "cd /projects/sandbox/abetVideos/frontend && npm install && npm run build",
+    "cd /projects/sandbox/abetVideos/frontend && npm run test 2>&1 || true"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

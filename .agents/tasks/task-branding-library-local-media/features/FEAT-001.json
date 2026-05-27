@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Backend: Local Media Library and Branding system - routers, services, models, and LocalMediaProvider",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Add new Pydantic models to backend/app/models/schemas.py: LibraryItem (id, filename, original_filename, category: 'music'|'image'|'video', labels: list[str], description: str, file_path: str, created_at: str, file_size: int), LibraryCategory enum, BrandingConfig (id, image_path, position: 'top-left'|'top-right'|'bottom-left'|'bottom-right'|'top-center'|'bottom-center', size_percent: float 10-50, opacity: float 0.1-1.0, enabled: bool), BrandingPosition enum. Also add branding_config optional field to AssembleVideoRequest and GenerateFullRequest.",
+    "Step 2: Create backend/app/services/library_service.py - a service that manages the local media library using JSON metadata file at output/library/metadata.json. Methods: add_item(file, category, labels, description) -> LibraryItem, list_items(category?, labels?) -> list[LibraryItem], get_item(item_id) -> LibraryItem, delete_item(item_id) -> bool, search_items(query: str) -> list[LibraryItem] (matches query against labels and description). Store files in output/library/music/, output/library/images/, output/library/videos/ based on category.",
+    "Step 3: Create backend/app/services/branding_service.py - manages branding config stored in output/branding/config.json. Methods: upload_branding(file) -> BrandingConfig, get_config() -> BrandingConfig|None, update_config(position, size_percent, opacity, enabled) -> BrandingConfig, delete_branding() -> bool. Store uploaded branding images in output/branding/.",
+    "Step 4: Create backend/app/routers/library.py - REST endpoints: POST /api/library/upload (multipart form: file, category, labels comma-separated, description), GET /api/library (query params: category, labels, search), GET /api/library/{item_id}, DELETE /api/library/{item_id}, GET /api/library/search?query=... Register router in main.py.",
+    "Step 5: Create backend/app/routers/branding.py - REST endpoints: POST /api/branding/upload (multipart form: file, position, size_percent, opacity), GET /api/branding, PUT /api/branding (JSON body: position, size_percent, opacity, enabled), DELETE /api/branding. Register router in main.py.",
+    "Step 6: Create LocalMediaProvider class in backend/app/services/local_media_provider.py. Subclass MediaProvider from media_sourcer.py. The search method loads library metadata and matches the query keywords against item labels using simple substring/word matching. Returns MediaItems with local_path already set (no download needed). is_configured() returns True if output/library/metadata.json exists and has items. Set name='local_library', supported_media_types=[MediaType.video, MediaType.image].",
+    "Step 7: Register LocalMediaProvider FIRST in the provider_registry in media_sourcer.py (insert at position 0 before PexelsProvider). This ensures the local library is checked before any external API.",
+    "Step 8: Update video_assembler.py assemble_video() to accept an optional branding_config parameter (BrandingConfig). If branding is enabled and an image exists, load the branding image as an ImageClip, resize to size_percent of video width, set opacity, and position it using CompositeVideoClip on top of each scene clip (or on the final concatenated video). Use MoviePy's CompositeVideoClip to overlay the branding.",
+    "Step 9: Update backend/app/routers/videos.py assemble endpoint and generate-full endpoint to pass branding_config through to assemble_video. Load branding config from branding_service if not explicitly provided in the request.",
+    "Step 10: Mount static file serving for library files in main.py startup: mount /static/library pointing to output/library/ directory so frontend can preview uploaded media. Also mount /static/branding for branding images.",
+    "Step 11: Add python-multipart to backend dependencies in pyproject.toml (needed for file upload endpoints)."
+  ],
+  "acceptance_criteria": [
+    "POST /api/library/upload accepts a file with metadata and stores it in the correct category directory",
+    "GET /api/library returns all items, filterable by category and labels",
+    "GET /api/library/search?query=nature returns items whose labels contain 'nature'",
+    "DELETE /api/library/{item_id} removes the item and its file",
+    "POST /api/branding/upload stores a branding image and returns config",
+    "GET /api/branding returns current branding config or null",
+    "PUT /api/branding updates position/size/opacity settings",
+    "LocalMediaProvider is registered first in provider_registry and returns local items when labels match",
+    "Video assembler applies branding overlay when config is present",
+    "Backend starts without errors with all new routers registered"
+  ],
+  "verification": [
+    "cd /projects/sandbox/abetVideos/backend && pip install -e '.[dev]' && python -c 'from app.main import app; print(\"Backend loads OK\")'",
+    "cd /projects/sandbox/abetVideos/backend && python -m pytest tests/ -x 2>/dev/null; echo 'Tests checked'",
+    "cd /projects/sandbox/abetVideos/backend && python -c 'from app.services.media_sourcer import provider_registry; providers = provider_registry.get_all_providers(); assert providers[0].name == \"local_library\", f\"First provider is {providers[0].name}\"; print(\"LocalMediaProvider is first\")'"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -16,6 +16,7 @@ from app.models.schemas import (
     AIGenerationSettings,
     AIGenerationStats,
     AssembleVideoRequest,
+    BrandingConfig,
     GenerateFullRequest,
     GenerateScriptRequest,
     GenerateTTSRequest,
@@ -174,6 +175,7 @@ async def assemble_final_video(request: AssembleVideoRequest):
             format=request.format,
             quality_settings=request.quality_settings,
             audio_settings=request.audio_settings,
+            branding_config=request.branding_config,
         )
         return result
     except ValueError as e:
@@ -292,12 +294,20 @@ async def generate_full_video(request: GenerateFullRequest):
             # Step 4: Video assembly
             current_stage = "video_assembly"
             yield _sse_event("video_assembly", 75, "Assembling final video...")
+
+            # Load branding config if not provided in request
+            branding_cfg = request.branding_config
+            if branding_cfg is None:
+                from app.services.branding_service import branding_service
+                branding_cfg = branding_service.get_config()
+
             result = await assemble_video(
                 script=script,
                 tts_results=tts_results,
                 scene_media=scene_media,
                 quality_settings=request.quality_settings,
                 audio_settings=request.audio_settings,
+                branding_config=branding_cfg,
             )
             yield _sse_event(
                 "video_assembly",

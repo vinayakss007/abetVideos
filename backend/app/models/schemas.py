@@ -6,6 +6,25 @@ from typing import Optional
 from pydantic import BaseModel, Field, model_validator
 
 
+class LibraryCategory(str, Enum):
+    """Local media library categories."""
+
+    music = "music"
+    image = "image"
+    video = "video"
+
+
+class BrandingPosition(str, Enum):
+    """Branding overlay position options."""
+
+    top_left = "top-left"
+    top_right = "top-right"
+    bottom_left = "bottom-left"
+    bottom_right = "bottom-right"
+    top_center = "top-center"
+    bottom_center = "bottom-center"
+
+
 class VideoStyle(str, Enum):
     """Video style options."""
 
@@ -115,6 +134,37 @@ class AudioSettings(BaseModel):
     generate_subtitles: bool = Field(
         default=False, description="Generate SRT subtitle file alongside the video"
     )
+
+
+class LibraryItem(BaseModel):
+    """A media item in the local library."""
+
+    id: str = Field(..., description="Unique item identifier")
+    filename: str = Field(..., description="Stored filename")
+    original_filename: str = Field(..., description="Original upload filename")
+    category: LibraryCategory = Field(..., description="Item category")
+    labels: list[str] = Field(default_factory=list, description="Searchable labels")
+    description: str = Field(default="", description="Item description")
+    file_path: str = Field(..., description="Path to stored file")
+    created_at: str = Field(..., description="ISO timestamp of creation")
+    file_size: int = Field(default=0, description="File size in bytes")
+
+
+class BrandingConfig(BaseModel):
+    """Branding overlay configuration."""
+
+    id: str = Field(..., description="Branding config identifier")
+    image_path: str = Field(..., description="Path to branding image")
+    position: BrandingPosition = Field(
+        default=BrandingPosition.bottom_right, description="Position on video"
+    )
+    size_percent: float = Field(
+        default=15.0, ge=10.0, le=50.0, description="Size as percentage of video width"
+    )
+    opacity: float = Field(
+        default=0.8, ge=0.1, le=1.0, description="Branding opacity"
+    )
+    enabled: bool = Field(default=True, description="Whether branding is enabled")
 
 
 class VideoRequest(BaseModel):
@@ -246,6 +296,9 @@ class AssembleVideoRequest(BaseModel):
     audio_settings: Optional[AudioSettings] = Field(
         default=None, description="Optional audio processing settings"
     )
+    branding_config: Optional[BrandingConfig] = Field(
+        default=None, description="Optional branding overlay config"
+    )
 
 
 class GenerateFullRequest(BaseModel):
@@ -262,6 +315,9 @@ class GenerateFullRequest(BaseModel):
     )
     ai_generation_settings: Optional["AIGenerationSettings"] = Field(
         default=None, description="Optional AI generation settings"
+    )
+    branding_config: Optional[BrandingConfig] = Field(
+        default=None, description="Optional branding overlay config"
     )
 
 
