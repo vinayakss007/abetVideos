@@ -39,6 +39,35 @@ async def upload_library_item(
     if not file_bytes:
         raise HTTPException(status_code=422, detail="Empty file")
 
+    # Validate content type against category
+    content_type = file.content_type
+    if content_type and content_type != "application/octet-stream":
+        type_prefix_map = {
+            LibraryCategory.music: "audio/",
+            LibraryCategory.image: "image/",
+            LibraryCategory.video: "video/",
+        }
+        expected_prefix = type_prefix_map[cat]
+        if not content_type.startswith(expected_prefix):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid content type '{content_type}' for category '{category}'. Expected {expected_prefix}*",
+            )
+
+    # Validate file size
+    size_limits = {
+        LibraryCategory.music: 50 * 1024 * 1024,   # 50MB
+        LibraryCategory.image: 20 * 1024 * 1024,   # 20MB
+        LibraryCategory.video: 200 * 1024 * 1024,  # 200MB
+    }
+    max_size = size_limits[cat]
+    if len(file_bytes) > max_size:
+        max_mb = max_size // (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size for {category} is {max_mb}MB",
+        )
+
     # Parse labels
     label_list = [l.strip() for l in labels.split(",") if l.strip()]
 

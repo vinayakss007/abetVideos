@@ -280,10 +280,10 @@ def _cleanup_intermediate_files(
         except OSError as e:
             logger.warning(f"Failed to remove TTS file {tts.audio_path}: {e}")
 
-    # Remove downloaded media files
+    # Remove downloaded media files (skip local library files to avoid data loss)
     for sm in scene_media:
         for item in sm.media_items:
-            if item.local_path:
+            if item.local_path and item.source != "local_library":
                 try:
                     media_path = Path(item.local_path)
                     if media_path.exists():

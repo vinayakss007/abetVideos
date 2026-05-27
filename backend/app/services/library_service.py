@@ -7,6 +7,7 @@ Files are stored in output/library/<category>/ directories.
 import json
 import logging
 import os
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,7 @@ class LibraryService:
     def __init__(self) -> None:
         self._base_dir = Path(settings.output_dir) / "library"
         self._metadata_path = self._base_dir / "metadata.json"
+        self._lock = threading.Lock()
 
     def _ensure_dirs(self) -> None:
         """Ensure all library directories exist."""
@@ -103,9 +105,10 @@ class LibraryService:
             file_size=len(file_bytes),
         )
 
-        metadata = self._load_metadata()
-        metadata.append(item.model_dump())
-        self._save_metadata(metadata)
+        with self._lock:
+            metadata = self._load_metadata()
+            metadata.append(item.model_dump())
+            self._save_metadata(metadata)
 
         logger.info(f"Library item added: {item_id} ({category.value}/{stored_filename})")
         return item
@@ -167,26 +170,27 @@ class LibraryService:
         Returns:
             True if deleted, False if not found.
         """
-        metadata = self._load_metadata()
-        new_metadata = []
-        deleted = False
+        with self._lock:
+            metadata = self._load_metadata()
+            new_metadata = []
+            deleted = False
 
-        for item_data in metadata:
-            if item_data.get("id") == item_id:
-                # Remove the file
-                file_path = item_data.get("file_path", "")
-                if file_path and os.path.exists(file_path):
-                    try:
-                        os.unlink(file_path)
-                    except OSError as e:
-                        logger.warning(f"Failed to delete file {file_path}: {e}")
-                deleted = True
-            else:
-                new_metadata.append(item_data)
+            for item_data in metadata:
+                if item_data.get("id") == item_id:
+                    # Remove the file
+                    file_path = item_data.get("file_path", "")
+                    if file_path and os.path.exists(file_path):
+                        try:
+                            os.unlink(file_path)
+                        except OSError as e:
+                            logger.warning(f"Failed to delete file {file_path}: {e}")
+                    deleted = True
+                else:
+                    new_metadata.append(item_data)
 
-        if deleted:
-            self._save_metadata(new_metadata)
-            logger.info(f"Library item deleted: {item_id}")
+            if deleted:
+                self._save_metadata(new_metadata)
+                logger.info(f"Library item deleted: {item_id}")
 
         return deleted
 

@@ -56,6 +56,23 @@ async def upload_branding(
     if not file_bytes:
         raise HTTPException(status_code=422, detail="Empty file")
 
+    # Validate content type (must be an image)
+    content_type = file.content_type
+    if content_type and content_type != "application/octet-stream":
+        if not content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid content type '{content_type}'. Branding must be an image (image/*)",
+            )
+
+    # Validate file size (max 10MB)
+    max_size = 10 * 1024 * 1024
+    if len(file_bytes) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail="File too large. Maximum size for branding images is 10MB",
+        )
+
     try:
         config = branding_service.upload_branding(
             file_bytes=file_bytes,

@@ -68,16 +68,23 @@ export default function BrandingSettings({ config, onChange }: BrandingSettingsP
     }
   };
 
-  const handleUpdateSettings = async (updates: Partial<{ position: BrandingPosition; size_percent: number; opacity: number; enabled: boolean }>) => {
-    const newPosition = updates.position ?? position;
-    const newSize = updates.size_percent ?? sizePercent;
-    const newOpacity = updates.opacity ?? opacity;
-    const newEnabled = updates.enabled ?? enabled;
+  const handleLocalChange = (updates: Partial<{ position: BrandingPosition; size_percent: number; opacity: number; enabled: boolean }>) => {
+    if (updates.position !== undefined) setPosition(updates.position);
+    if (updates.size_percent !== undefined) setSizePercent(updates.size_percent);
+    if (updates.opacity !== undefined) setOpacity(updates.opacity);
+    if (updates.enabled !== undefined) setEnabled(updates.enabled);
+  };
 
-    setPosition(newPosition);
-    setSizePercent(newSize);
-    setOpacity(newOpacity);
-    setEnabled(newEnabled);
+  const handleCommitSettings = async (updates?: Partial<{ position: BrandingPosition; size_percent: number; opacity: number; enabled: boolean }>) => {
+    const newPosition = updates?.position ?? position;
+    const newSize = updates?.size_percent ?? sizePercent;
+    const newOpacity = updates?.opacity ?? opacity;
+    const newEnabled = updates?.enabled ?? enabled;
+
+    if (updates?.position !== undefined) setPosition(newPosition);
+    if (updates?.size_percent !== undefined) setSizePercent(newSize);
+    if (updates?.opacity !== undefined) setOpacity(newOpacity);
+    if (updates?.enabled !== undefined) setEnabled(newEnabled);
 
     if (config) {
       try {
@@ -92,7 +99,6 @@ export default function BrandingSettings({ config, onChange }: BrandingSettingsP
         // Error handled by interceptor
       }
     } else {
-      // No config uploaded yet, just update local state
       onChange(null);
     }
   };
@@ -156,7 +162,7 @@ export default function BrandingSettings({ config, onChange }: BrandingSettingsP
                 <button
                   key={pos.value}
                   type="button"
-                  onClick={() => handleUpdateSettings({ position: pos.value })}
+                  onClick={() => handleCommitSettings({ position: pos.value })}
                   className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                     position === pos.value
                       ? 'bg-primary-600 text-white ring-2 ring-primary-400'
@@ -179,7 +185,8 @@ export default function BrandingSettings({ config, onChange }: BrandingSettingsP
               min="10"
               max="50"
               value={sizePercent}
-              onChange={(e) => handleUpdateSettings({ size_percent: parseInt(e.target.value) })}
+              onChange={(e) => handleLocalChange({ size_percent: parseInt(e.target.value) })}
+              onPointerUp={() => handleCommitSettings()}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -198,7 +205,8 @@ export default function BrandingSettings({ config, onChange }: BrandingSettingsP
               min="10"
               max="100"
               value={Math.round(opacity * 100)}
-              onChange={(e) => handleUpdateSettings({ opacity: parseInt(e.target.value) / 100 })}
+              onChange={(e) => handleLocalChange({ opacity: parseInt(e.target.value) / 100 })}
+              onPointerUp={() => handleCommitSettings()}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -212,7 +220,7 @@ export default function BrandingSettings({ config, onChange }: BrandingSettingsP
             <span className="text-sm font-medium text-gray-300">Enable Branding</span>
             <button
               type="button"
-              onClick={() => handleUpdateSettings({ enabled: !enabled })}
+              onClick={() => handleCommitSettings({ enabled: !enabled })}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 enabled ? 'bg-primary-600' : 'bg-gray-700'
               }`}
