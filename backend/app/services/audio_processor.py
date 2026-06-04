@@ -9,6 +9,11 @@ import httpx
 import numpy as np
 from moviepy import AudioFileClip, CompositeAudioClip, concatenate_audioclips
 
+SAMPLE_RATE = 22050
+TARGET_PEAK_AMPLITUDE = 0.9
+MAX_GAIN_CLAMP = 5.0
+DUCKING_RATIO = 0.3
+
 from app.models.schemas import TTSResult, VideoScript
 
 logger = logging.getLogger(__name__)
@@ -35,19 +40,17 @@ def normalize_audio_clips(audio_clips: list) -> list:
     if not audio_clips:
         return audio_clips
 
-    target_peak = 0.9
     normalized = []
 
     for clip in audio_clips:
         try:
             # Sample audio data to determine peak amplitude
-            fps = 22050
-            samples = clip.to_soundarray(fps=fps)
+            samples = clip.to_soundarray(fps=SAMPLE_RATE)
             peak = np.max(np.abs(samples))
             if peak > 0:
-                gain = target_peak / peak
+                gain = TARGET_PEAK_AMPLITUDE / peak
                 # Clamp gain to avoid extreme amplification of very quiet clips
-                gain = min(gain, 5.0)
+                gain = min(gain, MAX_GAIN_CLAMP)
                 normalized.append(clip.with_volume_scaled(gain))
             else:
                 normalized.append(clip)
@@ -163,7 +166,7 @@ def mix_background_music(
         if enable_ducking and scene_audio_timings:
             # Implement time-varying ducking: lower music during narration,
             # raise it between narration segments.
-            ducking_ratio = 0.3  # Reduce to 30% during narration
+            ducking_ratio = DUCKING_RATIO  # Reduce to 30% during narration
 
             def _ducking_filter(get_frame, t):
                 """Apply time-varying volume based on narration timings."""

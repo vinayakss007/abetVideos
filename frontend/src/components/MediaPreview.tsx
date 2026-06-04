@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { RefreshCw, Check, X, ArrowRight, Image, Film, Search, Music, Volume2 } from 'lucide-react';
-import type { MediaItem, SceneMedia } from '../types';
-import { searchMedia } from '../api/client';
+import type { MediaItem, SceneMedia, VideoScript } from '../types';
+import { searchMedia, sourceMedia } from '../api/client';
 
 interface MediaPreviewProps {
   sceneMedia: SceneMedia[];
   onUpdateMedia: (items: SceneMedia[]) => void;
   onConfirm: () => void;
   isLoading: boolean;
+  onRegenerateScene?: (sceneNumber: number) => void;
+  script?: VideoScript | null;
 }
 
 function getResolutionBadge(width?: number | null, height?: number | null): string | null {
@@ -17,11 +19,12 @@ function getResolutionBadge(width?: number | null, height?: number | null): stri
   return null;
 }
 
-export default function MediaPreview({ sceneMedia, onUpdateMedia, onConfirm, isLoading }: MediaPreviewProps) {
+export default function MediaPreview({ sceneMedia, onUpdateMedia, onConfirm, isLoading, onRegenerateScene, script }: MediaPreviewProps) {
   const [searchingScene, setSearchingScene] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [refreshingAll, setRefreshingAll] = useState(false);
 
   // Flatten all media items for display
   const allItems: { item: MediaItem; sceneIndex: number; itemIndex: number }[] = [];
@@ -119,11 +122,23 @@ export default function MediaPreview({ sceneMedia, onUpdateMedia, onConfirm, isL
         </div>
         <button
           type="button"
-          className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm text-gray-300 transition-colors"
-          disabled
+          onClick={async () => {
+            if (!script || refreshingAll) return;
+            setRefreshingAll(true);
+            try {
+              const allMedia = await sourceMedia(script);
+              onUpdateMedia(allMedia);
+            } catch {
+              /* error handled by api client toast */
+            } finally {
+              setRefreshingAll(false);
+            }
+          }}
+          className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm text-gray-300 transition-colors disabled:opacity-50"
+          disabled={!script || refreshingAll}
         >
-          <RefreshCw className="w-4 h-4" />
-          Refresh All
+          <RefreshCw className={`w-4 h-4 ${refreshingAll ? 'animate-spin' : ''}`} />
+          {refreshingAll ? 'Refreshing...' : 'Refresh All'}
         </button>
       </div>
 
@@ -140,14 +155,24 @@ export default function MediaPreview({ sceneMedia, onUpdateMedia, onConfirm, isL
                 <h4 className="text-sm font-medium text-gray-300">
                   Scene {scene.scene_number}
                 </h4>
-                <button
-                  type="button"
-                  onClick={() => handleSearchMore(sceneIndex)}
-                  className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
-                >
-                  <Search className="w-3 h-3" />
-                  Search More
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onRegenerateScene?.(scene.scene_number)}
+                    className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Regenerate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSearchMore(sceneIndex)}
+                    className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
+                  >
+                    <Search className="w-3 h-3" />
+                    Search More
+                  </button>
+                </div>
               </div>
 
               {searchingScene === sceneIndex && (
@@ -274,8 +299,15 @@ export default function MediaPreview({ sceneMedia, onUpdateMedia, onConfirm, isL
                           </button>
                           <button
                             type="button"
+                            onClick={() => {
+                              const updated = sceneMedia.map((scene, si) => {
+                                if (si !== sceneIndex) return scene;
+                                return { ...scene, media_items: [item] };
+                              });
+                              onUpdateMedia(updated);
+                            }}
                             className="p-1.5 bg-green-600/80 hover:bg-green-600 rounded-lg text-white"
-                            title="Accept"
+                            title="Accept (keep this, remove others)"
                           >
                             <Check className="w-3 h-3" />
                           </button>

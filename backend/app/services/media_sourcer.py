@@ -1,14 +1,8 @@
-"""Media sourcing service - searches Pexels, Pixabay, Giphy, Unsplash, and Freesound for media.
-
-Provides a pluggable provider system via the MediaProvider abstract base class
-and MediaProviderRegistry. New providers can be added by subclassing
-MediaProvider and registering with the registry.
-"""
+"""Media sourcing service - per-user API keys via settings context."""
 
 import asyncio
 import json
 import logging
-import os
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -17,25 +11,22 @@ from typing import Optional
 import httpx
 from PIL import Image, ImageDraw, ImageFont
 
-from app.config import settings
 from app.models.schemas import MediaItem, MediaType, SceneMedia, VideoScript
+from app.settings_manager import get_user_setting
+
+MAX_CONCURRENT_SOURCES = 5
+HTTP_TIMEOUT = 10.0
+KEYWORD_TEMPERATURE = 0.3
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Abstract base class for media providers
+# Abstract base class
 # ---------------------------------------------------------------------------
 
 
 class MediaProvider(ABC):
-    """Abstract base class for media providers.
-
-    Subclass this to add a new media source. Implement the `search` method
-    and set the class-level attributes. Register your provider with the
-    MediaProviderRegistry to make it available to the system.
-    """
-
     name: str = ""
     supported_media_types: list[MediaType] = []
 
@@ -43,15 +34,12 @@ class MediaProvider(ABC):
     async def search(
         self, query: str, client: httpx.AsyncClient, per_page: int = 3
     ) -> list[MediaItem]:
-        """Search this provider for media matching the query."""
         ...
 
     def is_configured(self) -> bool:
-        """Return True if this provider has valid API credentials configured."""
         return False
 
     def get_status(self) -> dict:
-        """Return provider status info for the API."""
         return {
             "name": self.name,
             "configured": self.is_configured(),
@@ -60,18 +48,16 @@ class MediaProvider(ABC):
 
 
 # ---------------------------------------------------------------------------
-# Concrete provider implementations
+# Concrete providers
 # ---------------------------------------------------------------------------
 
 
 class PexelsProvider(MediaProvider):
-    """Pexels API provider for videos and photos."""
-
     name = "pexels"
     supported_media_types = [MediaType.video, MediaType.image]
 
     def is_configured(self) -> bool:
-        return bool(settings.pexels_api_key)
+        return bool(get_user_setting("pexels_api_key"))
 
     async def search(
         self, query: str, client: httpx.AsyncClient, per_page: int = 3
@@ -87,13 +73,11 @@ class PexelsProvider(MediaProvider):
 
 
 class PixabayProvider(MediaProvider):
-    """Pixabay API provider for videos and images."""
-
     name = "pixabay"
     supported_media_types = [MediaType.video, MediaType.image]
 
     def is_configured(self) -> bool:
-        return bool(settings.pixabay_api_key)
+        return bool(get_user_setting("pixabay_api_key"))
 
     async def search(
         self, query: str, client: httpx.AsyncClient, per_page: int = 3
@@ -109,13 +93,11 @@ class PixabayProvider(MediaProvider):
 
 
 class GiphyProvider(MediaProvider):
-    """Giphy API provider for GIFs."""
-
     name = "giphy"
     supported_media_types = [MediaType.gif]
 
     def is_configured(self) -> bool:
-        return bool(settings.giphy_api_key)
+        return bool(get_user_setting("giphy_api_key"))
 
     async def search(
         self, query: str, client: httpx.AsyncClient, per_page: int = 3
@@ -126,13 +108,11 @@ class GiphyProvider(MediaProvider):
 
 
 class UnsplashProvider(MediaProvider):
-    """Unsplash API provider for photos."""
-
     name = "unsplash"
     supported_media_types = [MediaType.image]
 
     def is_configured(self) -> bool:
-        return bool(settings.unsplash_access_key)
+        return bool(get_user_setting("unsplash_access_key"))
 
     async def search(
         self, query: str, client: httpx.AsyncClient, per_page: int = 3
@@ -143,13 +123,11 @@ class UnsplashProvider(MediaProvider):
 
 
 class FreesoundProvider(MediaProvider):
-    """Freesound API provider for audio/sound effects."""
-
     name = "freesound"
     supported_media_types = [MediaType.sound]
 
     def is_configured(self) -> bool:
-        return bool(settings.freesound_api_key)
+        return bool(get_user_setting("freesound_api_key"))
 
     async def search(
         self, query: str, client: httpx.AsyncClient, per_page: int = 3
@@ -165,43 +143,29 @@ class FreesoundProvider(MediaProvider):
 
 
 class MediaProviderRegistry:
-    """Registry that manages all media providers and handles fallback.
-
-    Providers are tried in registration order. Only providers with valid
-    API credentials are considered active. To add a new provider, create a
-    class that extends MediaProvider and call registry.register(YourProvider()).
-    """
-
     def __init__(self) -> None:
         self._providers: list[MediaProvider] = []
 
     def register(self, provider: MediaProvider) -> None:
-        """Register a new media provider."""
         self._providers.append(provider)
 
     def get_all_providers(self) -> list[MediaProvider]:
-        """Return all registered providers."""
         return list(self._providers)
 
     def get_active_providers(self) -> list[MediaProvider]:
-        """Return only providers with valid API credentials."""
         return [p for p in self._providers if p.is_configured()]
 
     def get_providers_status(self) -> list[dict]:
-        """Return status info for all registered providers."""
         return [p.get_status() for p in self._providers]
 
     async def search_all(
         self, query: str, client: httpx.AsyncClient, per_page: int = 2
     ) -> list[MediaItem]:
-        """Search all active providers concurrently."""
         active = self.get_active_providers()
         if not active:
             return []
-
         tasks = [p.search(query, client, per_page=per_page) for p in active]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-
         all_items: list[MediaItem] = []
         for result in results:
             if isinstance(result, list):
@@ -215,16 +179,9 @@ class MediaProviderRegistry:
         preferred_types: list[MediaType] | None = None,
         per_page: int = 3,
     ) -> list[MediaItem]:
-        """Search providers with fallback - tries each active provider in order.
-
-        If preferred_types is specified, providers supporting those types
-        are tried first.
-        """
         active = self.get_active_providers()
         if not active:
             return []
-
-        # Sort providers: those matching preferred types first
         if preferred_types:
             preferred = [
                 p for p in active
@@ -243,11 +200,9 @@ class MediaProviderRegistry:
             except Exception as e:
                 logger.warning(f"Provider {provider.name} failed: {e}")
                 continue
-
         return []
 
 
-# Global registry instance with all built-in providers
 provider_registry = MediaProviderRegistry()
 provider_registry.register(PexelsProvider())
 provider_registry.register(PixabayProvider())
@@ -255,10 +210,8 @@ provider_registry.register(GiphyProvider())
 provider_registry.register(UnsplashProvider())
 provider_registry.register(FreesoundProvider())
 
-# Module-level lock for cache manifest read-modify-write operations
 _cache_manifest_lock = asyncio.Lock()
 
-# API endpoints
 PEXELS_VIDEO_URL = "https://api.pexels.com/videos/search"
 PEXELS_PHOTO_URL = "https://api.pexels.com/v1/search"
 PIXABAY_URL = "https://pixabay.com/api/"
@@ -266,14 +219,12 @@ PIXABAY_VIDEO_URL = "https://pixabay.com/api/videos/"
 GIPHY_URL = "https://api.giphy.com/v1/gifs/search"
 UNSPLASH_SEARCH_URL = "https://api.unsplash.com/search/photos"
 FREESOUND_SEARCH_URL = "https://freesound.org/apiv2/search/text/"
+WIKIMEDIA_COMMONS_SEARCH_URL = "https://commons.wikimedia.org/w/api.php"
+WIKIMEDIA_COMMONS_FILE_URL = "https://commons.wikimedia.org/w/api.php"
+BING_IMAGE_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/images/search"
 
 
 def _extract_keywords(visual_description: str) -> str:
-    """Extract search keywords from a visual description.
-
-    Simplifies the description to key searchable terms.
-    """
-    # Remove common filler words and keep the essence
     stop_words = {
         "a", "an", "the", "of", "in", "on", "at", "to", "for",
         "is", "are", "was", "were", "be", "been", "being",
@@ -284,22 +235,14 @@ def _extract_keywords(visual_description: str) -> str:
         "and", "or", "but", "not", "no", "very", "really",
         "showing", "displaying", "featuring", "depicting",
     }
-
     words = visual_description.lower().split()
     keywords = [w.strip(".,!?;:'\"") for w in words if w.lower().strip(".,!?;:'\"") not in stop_words]
-    # Take first 5 meaningful keywords
     return " ".join(keywords[:5])
 
 
 async def ai_extract_keywords(visual_description: str) -> str:
-    """Extract optimal search keywords using the AI gateway.
-
-    Uses the AI gateway to produce 3-5 search-optimized keywords
-    from a visual description. Falls back to _extract_keywords on failure.
-    """
     try:
         from app.services.ai_gateway import ai_gateway
-
         messages = [
             {
                 "role": "system",
@@ -316,7 +259,7 @@ async def ai_extract_keywords(visual_description: str) -> str:
         ]
         result = await ai_gateway.chat_completion(
             messages=messages,
-            temperature=0.3,
+            temperature=KEYWORD_TEMPERATURE,
             max_tokens=50,
         )
         keywords = result.strip()
@@ -324,17 +267,12 @@ async def ai_extract_keywords(visual_description: str) -> str:
             return keywords
     except Exception as e:
         logger.warning(f"AI keyword extraction failed, using fallback: {e}")
-
     return _extract_keywords(visual_description)
 
 
 def filter_by_quality(
     items: list[MediaItem], min_width: int = 1280, min_height: int = 720
 ) -> list[MediaItem]:
-    """Filter media items by minimum resolution.
-
-    Items without width/height information pass through.
-    """
     filtered = []
     for item in items:
         if item.width is None or item.height is None:
@@ -345,14 +283,12 @@ def filter_by_quality(
 
 
 def _get_cache_manifest_path(output_dir: Path) -> Path:
-    """Get the path to the media cache manifest file."""
     cache_dir = output_dir / "media_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / "manifest.json"
 
 
 def _load_cache_manifest(manifest_path: Path) -> dict[str, str]:
-    """Load the cache manifest from disk."""
     if manifest_path.exists():
         try:
             with open(manifest_path, "r") as f:
@@ -363,7 +299,6 @@ def _load_cache_manifest(manifest_path: Path) -> dict[str, str]:
 
 
 def _save_cache_manifest(manifest_path: Path, manifest: dict[str, str]) -> None:
-    """Save the cache manifest to disk."""
     with open(manifest_path, "w") as f:
         f.write(json.dumps(manifest, indent=2))
 
@@ -371,20 +306,18 @@ def _save_cache_manifest(manifest_path: Path, manifest: dict[str, str]) -> None:
 async def search_unsplash(
     query: str, client: httpx.AsyncClient, per_page: int = 3
 ) -> list[MediaItem]:
-    """Search Unsplash for photos."""
-    if not settings.unsplash_access_key:
+    api_key = get_user_setting("unsplash_access_key")
+    if not api_key:
         return []
-
     try:
         response = await client.get(
             UNSPLASH_SEARCH_URL,
             params={"query": query, "per_page": per_page},
-            headers={"Authorization": f"Client-ID {settings.unsplash_access_key}"},
-            timeout=10.0,
+            headers={"Authorization": f"Client-ID {api_key}"},
+            timeout=HTTP_TIMEOUT,
         )
         response.raise_for_status()
         data = response.json()
-
         items = []
         for photo in data.get("results", []):
             urls = photo.get("urls", {})
@@ -409,24 +342,22 @@ async def search_unsplash(
 async def search_freesound(
     query: str, client: httpx.AsyncClient, limit: int = 3
 ) -> list[MediaItem]:
-    """Search Freesound for audio/sound effects."""
-    if not settings.freesound_api_key:
+    api_key = get_user_setting("freesound_api_key")
+    if not api_key:
         return []
-
     try:
         response = await client.get(
             FREESOUND_SEARCH_URL,
             params={
                 "query": query,
-                "token": settings.freesound_api_key,
+                "token": api_key,
                 "fields": "id,name,previews,duration",
                 "page_size": limit,
             },
-            timeout=10.0,
+            timeout=HTTP_TIMEOUT,
         )
         response.raise_for_status()
         data = response.json()
-
         items = []
         for result in data.get("results", []):
             previews = result.get("previews", {})
@@ -449,26 +380,22 @@ async def search_freesound(
 async def search_pexels_videos(
     query: str, client: httpx.AsyncClient, per_page: int = 3
 ) -> list[MediaItem]:
-    """Search Pexels for videos."""
-    if not settings.pexels_api_key:
+    api_key = get_user_setting("pexels_api_key")
+    if not api_key:
         return []
-
     try:
         response = await client.get(
             PEXELS_VIDEO_URL,
             params={"query": query, "per_page": per_page, "size": "medium"},
-            headers={"Authorization": settings.pexels_api_key},
-            timeout=10.0,
+            headers={"Authorization": api_key},
+            timeout=HTTP_TIMEOUT,
         )
         response.raise_for_status()
         data = response.json()
-
         items = []
         for video in data.get("videos", []):
-            # Get medium quality video file
             video_files = video.get("video_files", [])
             if video_files:
-                # Prefer HD quality
                 selected = None
                 for vf in video_files:
                     if vf.get("quality") == "hd":
@@ -476,7 +403,6 @@ async def search_pexels_videos(
                         break
                 if not selected:
                     selected = video_files[0]
-
                 items.append(
                     MediaItem(
                         url=selected["link"],
@@ -496,20 +422,18 @@ async def search_pexels_videos(
 async def search_pexels_photos(
     query: str, client: httpx.AsyncClient, per_page: int = 3
 ) -> list[MediaItem]:
-    """Search Pexels for photos."""
-    if not settings.pexels_api_key:
+    api_key = get_user_setting("pexels_api_key")
+    if not api_key:
         return []
-
     try:
         response = await client.get(
             PEXELS_PHOTO_URL,
             params={"query": query, "per_page": per_page},
-            headers={"Authorization": settings.pexels_api_key},
-            timeout=10.0,
+            headers={"Authorization": api_key},
+            timeout=HTTP_TIMEOUT,
         )
         response.raise_for_status()
         data = response.json()
-
         items = []
         for photo in data.get("photos", []):
             src = photo.get("src", {})
@@ -534,23 +458,20 @@ async def search_pexels_photos(
 async def search_pixabay_videos(
     query: str, client: httpx.AsyncClient, per_page: int = 3
 ) -> list[MediaItem]:
-    """Search Pixabay for videos."""
-    if not settings.pixabay_api_key:
+    api_key = get_user_setting("pixabay_api_key")
+    if not api_key:
         return []
-
     try:
         response = await client.get(
             PIXABAY_VIDEO_URL,
-            params={"key": settings.pixabay_api_key, "q": query, "per_page": per_page},
-            timeout=10.0,
+            params={"key": api_key, "q": query, "per_page": per_page},
+            timeout=HTTP_TIMEOUT,
         )
         response.raise_for_status()
         data = response.json()
-
         items = []
         for hit in data.get("hits", []):
             videos = hit.get("videos", {})
-            # Prefer medium quality
             medium = videos.get("medium", {})
             url = medium.get("url", "")
             if url:
@@ -573,24 +494,22 @@ async def search_pixabay_videos(
 async def search_pixabay_images(
     query: str, client: httpx.AsyncClient, per_page: int = 3
 ) -> list[MediaItem]:
-    """Search Pixabay for images."""
-    if not settings.pixabay_api_key:
+    api_key = get_user_setting("pixabay_api_key")
+    if not api_key:
         return []
-
     try:
         response = await client.get(
             PIXABAY_URL,
             params={
-                "key": settings.pixabay_api_key,
+                "key": api_key,
                 "q": query,
                 "per_page": per_page,
                 "image_type": "photo",
             },
-            timeout=10.0,
+            timeout=HTTP_TIMEOUT,
         )
         response.raise_for_status()
         data = response.json()
-
         items = []
         for hit in data.get("hits", []):
             url = hit.get("largeImageURL", "")
@@ -614,24 +533,22 @@ async def search_pixabay_images(
 async def search_giphy(
     query: str, client: httpx.AsyncClient, limit: int = 3
 ) -> list[MediaItem]:
-    """Search Giphy for GIFs."""
-    if not settings.giphy_api_key:
+    api_key = get_user_setting("giphy_api_key")
+    if not api_key:
         return []
-
     try:
         response = await client.get(
             GIPHY_URL,
             params={
-                "api_key": settings.giphy_api_key,
+                "api_key": api_key,
                 "q": query,
                 "limit": limit,
                 "rating": "g",
             },
-            timeout=10.0,
+            timeout=HTTP_TIMEOUT,
         )
         response.raise_for_status()
         data = response.json()
-
         items = []
         for gif in data.get("data", []):
             images = gif.get("images", {})
@@ -654,37 +571,122 @@ async def search_giphy(
         return []
 
 
+async def search_wikimedia_commons(
+    query: str, client: httpx.AsyncClient, per_page: int = 3
+) -> list[MediaItem]:
+    headers = {"User-Agent": "abetVideos/1.0 (video generation bot; +https://github.com/abetVideos)"}
+    try:
+        params = {
+            "action": "query",
+            "list": "search",
+            "srnamespace": 6,
+            "srsearch": query,
+            "format": "json",
+            "srlimit": per_page,
+        }
+        response = await client.get(
+            WIKIMEDIA_COMMONS_SEARCH_URL, params=params, headers=headers, timeout=HTTP_TIMEOUT
+        )
+        response.raise_for_status()
+        data = response.json()
+        titles = [r["title"] for r in data.get("query", {}).get("search", [])]
+        if not titles:
+            return []
+
+        ii_params = {
+            "action": "query",
+            "titles": "|".join(titles),
+            "prop": "imageinfo",
+            "iiprop": "url|size",
+            "format": "json",
+        }
+        ii_resp = await client.get(
+            WIKIMEDIA_COMMONS_FILE_URL, params=ii_params, headers=headers, timeout=HTTP_TIMEOUT
+        )
+        ii_resp.raise_for_status()
+        ii_data = ii_resp.json()
+        items = []
+        for pid, page in ii_data.get("query", {}).get("pages", {}).items():
+            if int(pid) < 0:
+                continue
+            ii = page.get("imageinfo", [])
+            if not ii:
+                continue
+            url = ii[0].get("url", "")
+            if not url:
+                continue
+            items.append(
+                MediaItem(
+                    url=url,
+                    media_type=MediaType.image,
+                    source="wikimedia",
+                    query=query,
+                    width=ii[0].get("width"),
+                    height=ii[0].get("height"),
+                )
+            )
+        return items
+    except Exception as e:
+        logger.warning(f"Wikimedia Commons search failed for '{query}': {e}")
+        return []
+
+
+async def search_bing_images(
+    query: str, client: httpx.AsyncClient, per_page: int = 3
+) -> list[MediaItem]:
+    api_key = get_user_setting("bing_api_key")
+    if not api_key:
+        return []
+    try:
+        response = await client.get(
+            BING_IMAGE_SEARCH_URL,
+            params={"q": query, "count": per_page, "mkt": "en-US"},
+            headers={"Ocp-Apim-Subscription-Key": api_key},
+            timeout=HTTP_TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+        items = []
+        for value in data.get("value", []):
+            content_url = value.get("contentUrl", "")
+            if not content_url:
+                continue
+            items.append(
+                MediaItem(
+                    url=content_url,
+                    media_type=MediaType.image,
+                    source="bing",
+                    query=query,
+                    width=value.get("width"),
+                    height=value.get("height"),
+                )
+            )
+        return items
+    except Exception as e:
+        logger.warning(f"Bing image search failed for '{query}': {e}")
+        return []
+
+
 def generate_text_on_background(
     visual_description: str,
     output_dir: Path,
     width: int = 1920,
     height: int = 1080,
 ) -> MediaItem:
-    """Generate a text-on-background fallback image using PIL.
-
-    Creates a dark gradient background with white text centered on it.
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create gradient background (dark blue to dark purple)
-    img = Image.new("RGB", (width, height))
+    # Build gradient using numpy (avoids 1080 individual draw.line calls)
+    import numpy as np
+    ratio = np.arange(height) / height
+    r = (20 + ratio * 30).astype(np.uint8).reshape(-1, 1)
+    g = (20 + ratio * 10).astype(np.uint8).reshape(-1, 1)
+    b = (40 + ratio * 40).astype(np.uint8).reshape(-1, 1)
+    arr = np.broadcast_to(np.dstack((r, g, b)), (height, width, 3))
+    img = Image.fromarray(arr, "RGB")
     draw = ImageDraw.Draw(img)
-
-    # Draw a vertical gradient
-    for y in range(height):
-        ratio = y / height
-        r = int(20 + ratio * 30)
-        g = int(20 + ratio * 10)
-        b = int(40 + ratio * 40)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
-
-    # Add text
     try:
         font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
     except (IOError, OSError):
-        font = ImageFont.load_default()
-
-    # Wrap text to fit the image
+        font = ImageFont.load_default(size=48)
     max_chars_per_line = 40
     words = visual_description.split()
     lines = []
@@ -698,23 +700,18 @@ def generate_text_on_background(
             current_line = word
     if current_line:
         lines.append(current_line)
-
-    # Draw text centered
     line_height = 60
     total_text_height = len(lines) * line_height
     start_y = (height - total_text_height) // 2
-
     for i, line in enumerate(lines):
         bbox = draw.textbbox((0, 0), line, font=font)
         text_width = bbox[2] - bbox[0]
         x = (width - text_width) // 2
         y = start_y + i * line_height
         draw.text((x, y), line, fill=(255, 255, 255), font=font)
-
     filename = f"fallback_{uuid.uuid4().hex[:12]}.png"
     filepath = output_dir / filename
     img.save(filepath, "PNG")
-
     return MediaItem(
         url=f"file://{filepath}",
         local_path=str(filepath),
@@ -726,26 +723,20 @@ def generate_text_on_background(
     )
 
 
+DOWNLOAD_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0.0.0 Safari/537.36"
+    ),
+}
+
+
 async def download_media(
     item: MediaItem, output_dir: Path, client: httpx.AsyncClient
 ) -> MediaItem:
-    """Download a media item to the local filesystem.
-
-    Uses file-based caching with an asyncio.Lock to prevent race
-    conditions when multiple coroutines update the manifest concurrently.
-
-    Args:
-        item: The media item to download.
-        output_dir: Directory to save the file.
-        client: HTTP client for downloading.
-
-    Returns:
-        Updated MediaItem with local_path set.
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Check cache if enabled (under lock to avoid race conditions)
-    if settings.media_cache_enabled:
+    if get_user_setting("media_cache_enabled") or True:
         async with _cache_manifest_lock:
             manifest_path = _get_cache_manifest_path(output_dir)
             manifest = _load_cache_manifest(manifest_path)
@@ -754,7 +745,6 @@ async def download_media(
                 item.local_path = cached_path
                 logger.info(f"Cache hit for {item.url}")
                 return item
-
     ext_map = {
         MediaType.video: ".mp4",
         MediaType.image: ".jpg",
@@ -764,38 +754,29 @@ async def download_media(
     ext = ext_map.get(item.media_type, ".bin")
     filename = f"{uuid.uuid4().hex[:12]}{ext}"
     filepath = output_dir / filename
-
     try:
-        response = await client.get(item.url, timeout=30.0, follow_redirects=True)
+        response = await client.get(
+            item.url, headers=DOWNLOAD_HEADERS, timeout=30.0, follow_redirects=True
+        )
         response.raise_for_status()
-
         with open(filepath, "wb") as f:
             f.write(response.content)
-
         item.local_path = str(filepath)
         logger.info(f"Downloaded {item.media_type.value} from {item.source}: {filepath}")
-
-        # Update cache manifest under lock
-        if settings.media_cache_enabled:
+        if get_user_setting("media_cache_enabled"):
             async with _cache_manifest_lock:
                 manifest_path = _get_cache_manifest_path(output_dir)
                 manifest = _load_cache_manifest(manifest_path)
                 manifest[item.url] = str(filepath)
                 _save_cache_manifest(manifest_path, manifest)
-
     except Exception as e:
         logger.warning(f"Failed to download media from {item.url}: {e}")
-
     return item
 
 
 async def search_all_sources(
     query: str, client: httpx.AsyncClient, per_source: int = 2
 ) -> list[MediaItem]:
-    """Search all media sources concurrently and return aggregated results.
-
-    Returns up to 9 results across all sources.
-    """
     tasks = [
         search_pexels_videos(query, client, per_page=per_source),
         search_pixabay_videos(query, client, per_page=per_source),
@@ -805,14 +786,11 @@ async def search_all_sources(
         search_giphy(query, client, limit=per_source),
         search_freesound(query, client, limit=per_source),
     ]
-
     results = await asyncio.gather(*tasks, return_exceptions=True)
-
     all_items: list[MediaItem] = []
     for result in results:
         if isinstance(result, list):
             all_items.extend(result)
-
     return all_items[:9]
 
 
@@ -823,56 +801,46 @@ async def source_media_for_scene(
     client: httpx.AsyncClient,
     preferred_type: Optional[MediaType] = None,
 ) -> SceneMedia:
-    """Source media for a single scene with fallback logic.
-
-    Fallback chain:
-    1. Video sources (Pexels videos, Pixabay videos)
-    2. Image sources (Unsplash, Pexels photos, Pixabay images)
-    3. GIFs (Giphy)
-    4. Text-on-background fallback using PIL
-    """
     keywords = await ai_extract_keywords(visual_description)
     logger.info(f"Scene {scene_number}: searching for '{keywords}'")
-
     media_items: list[MediaItem] = []
 
-    # Step 1: Try video sources
     if preferred_type != MediaType.image:
         items = await search_pexels_videos(keywords, client)
         media_items.extend(items)
-
         if not media_items:
             items = await search_pixabay_videos(keywords, client)
             media_items.extend(items)
 
-    # Step 2: Try image sources
     if not media_items or preferred_type == MediaType.image:
         items = await search_unsplash(keywords, client)
         media_items.extend(items)
-
         if not media_items:
             items = await search_pexels_photos(keywords, client)
             media_items.extend(items)
-
         if not media_items:
             items = await search_pixabay_images(keywords, client)
             media_items.extend(items)
 
-    # Step 3: Try GIFs as fallback
     if not media_items:
         items = await search_giphy(keywords, client)
         media_items.extend(items)
 
-    # Apply quality filter
+    if not media_items:
+        items = await search_wikimedia_commons(keywords, client)
+        media_items.extend(items)
+
+    if not media_items:
+        items = await search_bing_images(keywords, client)
+        media_items.extend(items)
+
     media_items = filter_by_quality(media_items)
 
-    # Step 4: Text-on-background fallback
     if not media_items:
         scene_dir = output_dir / f"scene_{scene_number:03d}"
         fallback_item = generate_text_on_background(visual_description, scene_dir)
         media_items.append(fallback_item)
 
-    # Download the best item (first result)
     if media_items and not media_items[0].local_path:
         scene_dir = output_dir / f"scene_{scene_number:03d}"
         media_items[0] = await download_media(media_items[0], scene_dir, client)
@@ -885,25 +853,10 @@ async def source_media(
     preferred_type: Optional[MediaType] = None,
     output_dir: Optional[str] = None,
 ) -> list[SceneMedia]:
-    """Source media for all scenes in a script concurrently.
-
-    Uses asyncio.gather with a shared HTTP client and a semaphore to
-    limit concurrency to 5 simultaneous scene-sourcing tasks, preventing
-    API rate-limit issues on Pexels/Pixabay.
-
-    Args:
-        script: The video script.
-        preferred_type: Optional preferred media type.
-        output_dir: Optional output directory override.
-
-    Returns:
-        List of SceneMedia with sourced items per scene.
-    """
-    base_dir = Path(output_dir or settings.output_dir)
+    base_dir = Path(output_dir or get_user_setting("output_dir") or "./output")
     media_dir = base_dir / "media" / str(uuid.uuid4())[:8]
     media_dir.mkdir(parents=True, exist_ok=True)
-
-    semaphore = asyncio.Semaphore(5)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_SOURCES)
 
     async def _limited_source(scene):
         async with semaphore:

@@ -6,10 +6,18 @@ services:
     env_file: .env
     volumes:
       - ./output:/app/output
+      - ./backend/app/data:/app/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
 
   frontend:
     build: ./frontend
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy

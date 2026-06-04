@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, Clock, Palette } from 'lucide-react';
 import type { VideoRequest, VideoQualitySettings, AudioSettings as AudioSettingsType } from '../types';
+import { detectLanguage } from '../types';
 import QualitySettings from './QualitySettings';
 import AudioSettings from './AudioSettings';
 
@@ -21,7 +22,7 @@ const DEFAULT_AUDIO_SETTINGS: AudioSettingsType = {
   crossfade_duration: 0.5,
   normalize_audio: true,
   background_music_url: null,
-  background_music_volume: 0.15,
+  background_music_volume: 0.25,
   enable_ducking: true,
   generate_subtitles: false,
 };
@@ -56,6 +57,7 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
       topic: topic.trim(),
       duration_minutes: duration,
       style,
+      language: detectLanguage(audioSettings.tts_voice),
       quality_settings: qualitySettings,
       audio_settings: audioSettings,
     });
@@ -67,14 +69,20 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
         <label htmlFor="topic" className="block text-sm font-medium text-gray-300 mb-2">
           What is your video about?
         </label>
-        <textarea
-          id="topic"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          placeholder="Enter your video topic... e.g., 'The history of space exploration' or 'How to make the perfect coffee'"
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none h-32"
-          required
-        />
+        <div className="relative">
+          <textarea
+            id="topic"
+            maxLength={500}
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="Enter your video topic... e.g., 'The history of space exploration' or 'How to make the perfect coffee'"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none h-32"
+            required
+          />
+          <div className="absolute bottom-2 right-3 text-xs text-gray-500">
+            {topic.length}/500
+          </div>
+        </div>
       </div>
 
       <div>

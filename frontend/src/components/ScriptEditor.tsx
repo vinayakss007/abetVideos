@@ -1,19 +1,35 @@
-import { Plus, Trash2, ArrowRight } from 'lucide-react';
-import type { VideoScript, ScriptScene } from '../types';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Plus, Trash2, ArrowRight, Check } from 'lucide-react';
+import type { VideoScript, ScriptScene, TTSResult } from '../types';
+import VoicePreview from './VoicePreview';
 
 interface ScriptEditorProps {
   script: VideoScript;
+  voice?: string;
   onUpdate: (script: VideoScript) => void;
   onConfirm: () => void;
   isLoading: boolean;
+  onTtsGenerated?: (results: TTSResult[]) => void;
 }
 
-export default function ScriptEditor({ script, onUpdate, onConfirm, isLoading }: ScriptEditorProps) {
+export default function ScriptEditor({ script, voice, onUpdate, onConfirm, isLoading, onTtsGenerated }: ScriptEditorProps) {
+  const [saved, setSaved] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const showSaved = useCallback(() => {
+    setSaved(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setSaved(false), 1500);
+  }, []);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
   const updateScene = (index: number, field: keyof ScriptScene, value: string | number) => {
     const updatedScenes = [...script.scenes];
     updatedScenes[index] = { ...updatedScenes[index], [field]: value };
     const totalDuration = updatedScenes.reduce((sum, s) => sum + s.duration_seconds, 0);
     onUpdate({ ...script, scenes: updatedScenes, total_duration: totalDuration });
+    showSaved();
   };
 
   const addScene = () => {
@@ -26,6 +42,7 @@ export default function ScriptEditor({ script, onUpdate, onConfirm, isLoading }:
     const updatedScenes = [...script.scenes, newScene];
     const totalDuration = updatedScenes.reduce((sum, s) => sum + s.duration_seconds, 0);
     onUpdate({ ...script, scenes: updatedScenes, total_duration: totalDuration });
+    showSaved();
   };
 
   const removeScene = (index: number) => {
@@ -33,6 +50,7 @@ export default function ScriptEditor({ script, onUpdate, onConfirm, isLoading }:
     const updatedScenes = script.scenes.filter((_, i) => i !== index);
     const totalDuration = updatedScenes.reduce((sum, s) => sum + s.duration_seconds, 0);
     onUpdate({ ...script, scenes: updatedScenes, total_duration: totalDuration });
+    showSaved();
   };
 
   return (
@@ -44,14 +62,21 @@ export default function ScriptEditor({ script, onUpdate, onConfirm, isLoading }:
             {script.scenes.length} scenes - {Math.round(script.total_duration)}s total
           </p>
         </div>
-        <button
-          type="button"
-          onClick={addScene}
-          className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm text-gray-300 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Scene
-        </button>
+        <div className="flex items-center gap-3">
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-400 animate-pulse">
+              <Check className="w-3 h-3" /> Saved
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={addScene}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm text-gray-300 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Scene
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -108,6 +133,8 @@ export default function ScriptEditor({ script, onUpdate, onConfirm, isLoading }:
           </div>
         ))}
       </div>
+
+      <VoicePreview script={script} voice={voice} onGenerated={onTtsGenerated} />
 
       <button
         type="button"

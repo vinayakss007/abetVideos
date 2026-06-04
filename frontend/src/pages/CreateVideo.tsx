@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 import TopicInput from '../components/TopicInput';
 import ScriptEditor from '../components/ScriptEditor';
@@ -5,6 +6,8 @@ import MediaPreview from '../components/MediaPreview';
 import GenerationProgress from '../components/GenerationProgress';
 import VideoPlayer from '../components/VideoPlayer';
 import { useVideoGeneration } from '../hooks/useVideoGeneration';
+import * as api from '../api/client';
+import type { SceneMedia } from '../types';
 
 function getStepNumber(step: string): number {
   switch (step) {
@@ -30,6 +33,7 @@ export default function CreateVideo() {
   const {
     step,
     script,
+    ttsVoice,
     sceneMedia,
     videoResult,
     error,
@@ -38,8 +42,32 @@ export default function CreateVideo() {
     handleConfirmScript,
     handleConfirmMedia,
     handleRetry,
+    handleBack,
     setSceneMedia,
+    setAudioResults,
   } = useVideoGeneration();
+
+  const [regeneratingScene, setRegeneratingScene] = useState<number | null>(null);
+
+  const handleRegenerateScene = async (sceneNumber: number) => {
+    if (!script) return;
+    setRegeneratingScene(sceneNumber);
+    try {
+      const allMedia = await api.sourceMedia(script);
+      const sceneData = allMedia.find((s: SceneMedia) => s.scene_number === sceneNumber);
+      if (sceneData) {
+        setSceneMedia(
+          sceneMedia.map((s: SceneMedia) =>
+            s.scene_number === sceneNumber ? sceneData : s,
+          ),
+        );
+      }
+    } catch {
+      // error handled by api client toast
+    } finally {
+      setRegeneratingScene(null);
+    }
+  };
 
   const currentStepNumber = getStepNumber(step);
   const progressSteps = ['Topic', 'Script', 'Media', 'Generate', 'Result'];
@@ -105,25 +133,47 @@ export default function CreateVideo() {
         )}
 
         {(step === 'editing_script' || step === 'sourcing_media') && script && (
-          <ScriptEditor
-            script={script}
-            onUpdate={handleUpdateScript}
-            onConfirm={handleConfirmScript}
-            isLoading={step === 'sourcing_media'}
-          />
+          <>
+            {step === 'editing_script' && (
+              <button
+                onClick={handleBack}
+                className="mb-4 px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                ← Back to Topic
+              </button>
+            )}
+            <ScriptEditor
+              script={script}
+              voice={ttsVoice}
+              onUpdate={handleUpdateScript}
+              onConfirm={handleConfirmScript}
+              isLoading={step === 'sourcing_media'}
+              onTtsGenerated={setAudioResults}
+            />
+          </>
         )}
 
         {step === 'editing_media' && (
-          <MediaPreview
-            sceneMedia={sceneMedia}
-            onUpdateMedia={setSceneMedia}
-            onConfirm={handleConfirmMedia}
-            isLoading={false}
-          />
+          <>
+            <button
+              onClick={handleBack}
+              className="mb-4 px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              ← Back to Script
+            </button>
+            <MediaPreview
+              sceneMedia={sceneMedia}
+              onUpdateMedia={setSceneMedia}
+              onConfirm={handleConfirmMedia}
+              isLoading={regeneratingScene !== null}
+              onRegenerateScene={handleRegenerateScene}
+              script={script}
+            />
+          </>
         )}
 
         {(step === 'generating_tts' || step === 'assembling') && (
-          <GenerationProgress step={step} />
+          <GenerationProgress step={step} onCancel={handleRetry} />
         )}
 
         {step === 'complete' && videoResult && (

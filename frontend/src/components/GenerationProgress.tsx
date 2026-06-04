@@ -1,17 +1,18 @@
-import { Loader2, Mic, Film, Clapperboard, CheckCircle2 } from 'lucide-react';
+import { Loader2, Mic, Film, Clapperboard, CheckCircle2, XCircle } from 'lucide-react';
 import type { GenerationStep } from '../types';
 
 interface GenerationProgressProps {
   step: GenerationStep;
+  onCancel?: () => void;
 }
 
 const STEPS = [
-  { key: 'generating_tts', label: 'Generating Voice-Over', icon: Mic },
-  { key: 'assembling', label: 'Assembling Video', icon: Clapperboard },
-  { key: 'complete', label: 'Complete', icon: CheckCircle2 },
-] as const;
+  { key: 'generating_tts' as const, label: 'Generating Voice-Over', icon: Mic },
+  { key: 'assembling' as const, label: 'Assembling Video', icon: Clapperboard },
+  { key: 'complete' as const, label: 'Complete', icon: CheckCircle2 },
+];
 
-export default function GenerationProgress({ step }: GenerationProgressProps) {
+export default function GenerationProgress({ step, onCancel }: GenerationProgressProps) {
   const getCurrentStepIndex = () => {
     return STEPS.findIndex((s) => s.key === step);
   };
@@ -81,6 +82,19 @@ export default function GenerationProgress({ step }: GenerationProgressProps) {
           style={{ width: `${Math.max(((currentIndex + 1) / STEPS.length) * 100, 10)}%` }}
         />
       </div>
+
+      {onCancel && (
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-red-900/30 hover:bg-red-900/50 border border-red-700/50 rounded-lg text-red-300 text-sm transition-colors"
+          >
+            <XCircle className="w-4 h-4" />
+            Cancel Generation
+          </button>
+        </div>
+      )}
     </div>
   );
 }

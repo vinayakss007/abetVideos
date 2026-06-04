@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Volume2 } from 'lucide-react';
 import type { AudioSettings as AudioSettingsType } from '../types';
+import { TTS_VOICES } from '../types';
+import MusicBrowser from './MusicBrowser';
 
 interface AudioSettingsProps {
   settings: AudioSettingsType;
@@ -34,6 +36,21 @@ export default function AudioSettings({ settings, onChange }: AudioSettingsProps
 
       {isOpen && (
         <div className="p-4 space-y-6 bg-gray-800/50">
+          {/* TTS Voice Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Text-to-Speech Voice
+            </label>
+            <select
+              value={settings.tts_voice || 'en-US-AriaNeural'}
+              onChange={(e) => update({ tts_voice: e.target.value })}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+            >
+              {TTS_VOICES.map((v) => (
+                <option key={v.value} value={v.value}>{v.label}</option>
+              ))}
+            </select>
+          </div>
           {/* Normalize Audio Toggle */}
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-300">
@@ -94,19 +111,11 @@ export default function AudioSettings({ settings, onChange }: AudioSettingsProps
             </button>
           </div>
 
-          {/* Background Music URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Background Music URL (optional)
-            </label>
-            <input
-              type="url"
-              value={settings.background_music_url || ''}
-              onChange={(e) => update({ background_music_url: e.target.value || null })}
-              placeholder="https://example.com/music.mp3"
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-            />
-          </div>
+          {/* Background Music Browser */}
+          <MusicBrowser
+            onSelect={(url) => update({ background_music_url: url || null })}
+            currentUrl={settings.background_music_url}
+          />
 
           {/* Background Music Volume */}
           <div>

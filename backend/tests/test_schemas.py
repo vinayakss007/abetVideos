@@ -418,7 +418,7 @@ class TestAudioSettings:
         assert audio.crossfade_duration == 0.5
         assert audio.normalize_audio is True
         assert audio.background_music_url is None
-        assert audio.background_music_volume == 0.15
+        assert audio.background_music_volume == 0.25
         assert audio.enable_ducking is True
         assert audio.generate_subtitles is False
 

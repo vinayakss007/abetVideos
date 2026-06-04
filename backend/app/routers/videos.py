@@ -1,16 +1,14 @@
-"""Video generation API routes."""
+"""Video generation API routes (authenticated)."""
 
-import json
 import logging
-import os
 from pathlib import Path as FilePath
-from typing import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Depends, Path
 from fastapi.responses import FileResponse, StreamingResponse
 
 import httpx
 
+from app.auth.dependencies import get_current_user
 from app.config import settings
 from app.models.schemas import (
     AssembleVideoRequest,
@@ -25,10 +23,14 @@ from app.models.schemas import (
     VideoResult,
     VideoScript,
 )
+from app.services.history_service import add_to_history, get_history
 from app.services.media_sourcer import source_media, search_all_sources, provider_registry
+from app.services.music_service import search_music
 from app.services.script_generator import generate_script
 from app.services.tts_service import generate_tts
 from app.services.video_assembler import assemble_video
+from app.services.task_manager import create_task, get_task, stream_events, TaskStatus
+from app.settings_manager import set_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -36,36 +38,35 @@ router = APIRouter(prefix="/api/videos", tags=["videos"])
 
 
 def _safe_error_detail(prefix: str, exc: Exception) -> str:
-    """Create a sanitized error detail message that does not leak internals.
-
-    Returns a generic message with the exception class name but not the
-    full message, which may contain file paths, API keys, or stack info.
-    """
     return f"{prefix}: {type(exc).__name__}"
 
 
-@router.get("/providers")
-async def list_providers():
-    """Return the list of configured/active media providers.
+def _load_user_context(current_user: dict) -> None:
+    """Load the authenticated user's settings into the request context."""
+    set_active_user(current_user["user_id"])
 
-    Shows which media providers are connected and available for use.
-    """
+
+@router.get("/providers")
+async def list_providers(current_user: dict = Depends(get_current_user)):
+    """Return the list of configured/active media providers."""
+    _load_user_context(current_user)
     return provider_registry.get_providers_status()
 
 
 @router.post("/generate-script", response_model=VideoScript)
-async def generate_video_script(request: GenerateScriptRequest):
-    """Generate a video script from a topic using AI.
-
-    Takes a topic, desired duration, and style, then uses the AI gateway
-    to generate a structured video script with scenes, narration, and
-    visual descriptions.
-    """
+async def generate_video_script(
+    request: GenerateScriptRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate a video script from a topic using AI."""
+    _load_user_context(current_user)
     try:
+        language = request.language if hasattr(request, 'language') else "english"
         script = await generate_script(
             topic=request.topic,
             duration_minutes=request.duration_minutes,
             style=request.style,
+            language=language,
         )
         return script
     except ValueError as e:
@@ -79,12 +80,12 @@ async def generate_video_script(request: GenerateScriptRequest):
 
 
 @router.post("/generate-tts", response_model=list[TTSResult])
-async def generate_video_tts(request: GenerateTTSRequest):
-    """Generate text-to-speech audio for a video script.
-
-    Takes a VideoScript and generates audio files for each scene's
-    narration using edge-tts.
-    """
+async def generate_video_tts(
+    request: GenerateTTSRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate text-to-speech audio for a video script."""
+    _load_user_context(current_user)
     try:
         results = await generate_tts(
             script=request.script,
@@ -100,12 +101,12 @@ async def generate_video_tts(request: GenerateTTSRequest):
 
 
 @router.post("/source-media", response_model=list[SceneMedia])
-async def source_video_media(request: SourceMediaRequest):
-    """Source media (videos, images, GIFs) for a video script.
-
-    Searches Pexels, Pixabay, and Giphy APIs for relevant media
-    based on each scene's visual description.
-    """
+async def source_video_media(
+    request: SourceMediaRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Source media (videos, images, GIFs) for a video script."""
+    _load_user_context(current_user)
     try:
         results = await source_media(
             script=request.script,
@@ -121,12 +122,12 @@ async def source_video_media(request: SourceMediaRequest):
 
 
 @router.post("/search-media", response_model=list[MediaItem])
-async def search_media(request: SearchMediaRequest):
-    """Search all media sources for a given query.
-
-    Returns up to 9 results from all sources (Pexels, Pixabay, Unsplash,
-    Giphy, Freesound) so the user can preview and select media.
-    """
+async def search_media(
+    request: SearchMediaRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Search all media sources for a given query."""
+    _load_user_context(current_user)
     try:
         async with httpx.AsyncClient() as client:
             results = await search_all_sources(request.query, client)
@@ -139,13 +140,57 @@ async def search_media(request: SearchMediaRequest):
         )
 
 
-@router.post("/assemble", response_model=VideoResult)
-async def assemble_final_video(request: AssembleVideoRequest):
-    """Assemble the final video from script, audio, and media.
+@router.get("/music-search")
+async def list_music(
+    query: str = "calm",
+    current_user: dict = Depends(get_current_user),
+):
+    """Search royalty-free background music by mood or keyword."""
+    _load_user_context(current_user)
+    return await search_music(query)
 
-    Combines TTS audio with sourced media using MoviePy to produce
-    the final MP4 video file.
-    """
+
+@router.get("/history")
+async def list_video_history(
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the last 10 generated videos for the current user."""
+    _load_user_context(current_user)
+    return get_history(current_user["user_id"])
+
+
+@router.delete("/history/{entry_id}")
+async def delete_history_entry(
+    entry_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a single history entry and its associated video file."""
+    _load_user_context(current_user)
+    from app.services.history_service import delete_from_history
+    result = delete_from_history(current_user["user_id"], entry_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return {"detail": "Deleted"}
+
+
+@router.delete("/history")
+async def clear_all_history(
+    current_user: dict = Depends(get_current_user),
+):
+    """Clear all history entries and associated video files."""
+    _load_user_context(current_user)
+    from app.services.history_service import clear_history
+    clear_history(current_user["user_id"])
+    return {"detail": "All history cleared"}
+
+
+@router.post("/assemble", response_model=VideoResult)
+async def assemble_final_video(
+    request: AssembleVideoRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Assemble the final video from script, audio, and media."""
+    _load_user_context(current_user)
     try:
         result = await assemble_video(
             script=request.script,
@@ -154,6 +199,15 @@ async def assemble_final_video(request: AssembleVideoRequest):
             format=request.format,
             quality_settings=request.quality_settings,
             audio_settings=request.audio_settings,
+        )
+        add_to_history(
+            user_id=current_user["user_id"],
+            video_id=result.video_id,
+            title=request.script.title,
+            topic=request.script.title,
+            duration_seconds=result.duration_seconds,
+            scenes_count=result.scenes_count,
+            format=result.format.value,
         )
         return result
     except ValueError as e:
@@ -167,12 +221,12 @@ async def assemble_final_video(request: AssembleVideoRequest):
 
 
 @router.get("/{video_id}/download")
-async def download_video(video_id: str = Path(pattern=r"^[a-f0-9]{12}$")):
-    """Download a generated video by its ID.
-
-    Serves the MP4 file for the given video ID.
-    The video_id must be a 12-character lowercase hex string.
-    """
+async def download_video(
+    video_id: str = Path(pattern=r"^[a-f0-9]{12}$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Download a generated video by its ID."""
+    _load_user_context(current_user)
     output_dir = FilePath(settings.output_dir) / "videos"
     video_path = output_dir / f"{video_id}.mp4"
 
@@ -186,13 +240,36 @@ async def download_video(video_id: str = Path(pattern=r"^[a-f0-9]{12}$")):
     )
 
 
-@router.get("/{video_id}/subtitles")
-async def get_video_subtitles(video_id: str = Path(pattern=r"^[a-f0-9]{12}$")):
-    """Serve the generated SRT subtitle file for a video.
+@router.get("/audio-download")
+async def download_audio(
+    video_id: str,
+    scene_number: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Download a generated audio file by video_id and scene_number."""
+    _load_user_context(current_user)
+    base = FilePath(settings.output_dir).resolve()
+    audio_file = (base / "videos" / video_id / f"scene_{scene_number}.mp3").resolve()
+    try:
+        audio_file.relative_to(base)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not audio_file.exists() or not audio_file.is_file():
+        raise HTTPException(status_code=404, detail="Audio not found")
+    return FileResponse(
+        path=str(audio_file),
+        media_type="audio/mpeg",
+        filename=audio_file.name,
+    )
 
-    Returns the .srt file for the given video ID if it exists.
-    The video_id must be a 12-character lowercase hex string.
-    """
+
+@router.get("/{video_id}/subtitles")
+async def get_video_subtitles(
+    video_id: str = Path(pattern=r"^[a-f0-9]{12}$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Serve the generated SRT subtitle file for a video."""
+    _load_user_context(current_user)
     output_dir = FilePath(settings.output_dir) / "videos"
     srt_path = output_dir / f"{video_id}.srt"
 
@@ -206,96 +283,89 @@ async def get_video_subtitles(video_id: str = Path(pattern=r"^[a-f0-9]{12}$")):
     )
 
 
-def _sse_event(step: str, progress: float, message: str, data: dict | None = None) -> str:
-    """Format an SSE event."""
-    payload = {"step": step, "progress": progress, "message": message}
-    if data is not None:
-        payload["data"] = data
-    return f"data: {json.dumps(payload)}\n\n"
+@router.get("/{video_id}/thumbnail")
+async def get_video_thumbnail(
+    video_id: str = Path(pattern=r"^[a-f0-9]{12}$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Serve the generated thumbnail image for a video."""
+    _load_user_context(current_user)
+    output_dir = FilePath(settings.output_dir) / "videos"
+    thumb_path = output_dir / f"{video_id}.jpg"
+
+    if not thumb_path.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    return FileResponse(
+        path=str(thumb_path),
+        media_type="image/jpeg",
+        filename=f"{video_id}.jpg",
+    )
 
 
 @router.post("/generate-full")
-async def generate_full_video(request: GenerateFullRequest):
-    """Generate a complete video via the full pipeline with SSE progress updates.
+async def generate_full_video(
+    request: GenerateFullRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Start a background video generation task. Returns task_id immediately."""
+    _load_user_context(current_user)
+    task_id = create_task(request, current_user["user_id"])
+    return {"task_id": task_id, "status": TaskStatus.PENDING}
 
-    Orchestrates: script generation -> TTS -> media sourcing -> video assembly.
-    Streams progress events via Server-Sent Events.
-    """
 
-    async def event_stream() -> AsyncGenerator[str, None]:
-        current_stage = "initialization"
-        try:
-            # Step 1: Script generation
-            current_stage = "script_generation"
-            yield _sse_event("script_generation", 0, "Starting script generation...")
-            script = await generate_script(
-                topic=request.topic,
-                duration_minutes=request.duration_minutes,
-                style=request.style,
-            )
-            yield _sse_event(
-                "script_generation",
-                25,
-                f"Script generated: {script.title} ({len(script.scenes)} scenes)",
-                script.model_dump(),
-            )
+@router.get("/tasks/{task_id}")
+async def get_task_status(
+    task_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get the current status of a video generation task."""
+    _load_user_context(current_user)
+    task = get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task["user_id"] != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return {
+        "task_id": task["task_id"],
+        "status": task["status"],
+        "result": task["result"],
+        "created_at": task["created_at"],
+    }
 
-            # Step 2: TTS generation
-            current_stage = "tts_generation"
-            yield _sse_event("tts_generation", 25, "Generating text-to-speech audio...")
-            tts_results = await generate_tts(script=script)
-            yield _sse_event(
-                "tts_generation",
-                50,
-                f"Audio generated for {len(tts_results)} scenes",
-                [r.model_dump() for r in tts_results],
-            )
 
-            # Step 3: Media sourcing
-            current_stage = "media_sourcing"
-            yield _sse_event("media_sourcing", 50, "Sourcing media for scenes...")
-            scene_media = await source_media(script=script)
-            yield _sse_event(
-                "media_sourcing",
-                75,
-                f"Media sourced for {len(scene_media)} scenes",
-                [sm.model_dump() for sm in scene_media],
-            )
+@router.delete("/tasks/{task_id}")
+async def cancel_video_task(
+    task_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Cancel a running video generation task."""
+    _load_user_context(current_user)
+    task = get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task["user_id"] != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not cancel_task(task_id):
+        raise HTTPException(status_code=409, detail="Task is not cancellable")
+    return {"detail": "Task cancelled"}
 
-            # Step 4: Video assembly
-            current_stage = "video_assembly"
-            yield _sse_event("video_assembly", 75, "Assembling final video...")
-            result = await assemble_video(
-                script=script,
-                tts_results=tts_results,
-                scene_media=scene_media,
-                quality_settings=request.quality_settings,
-                audio_settings=request.audio_settings,
-            )
-            yield _sse_event(
-                "video_assembly",
-                90,
-                "Video assembly complete",
-            )
 
-            # Step 5: Complete
-            yield _sse_event(
-                "complete",
-                100,
-                "Video generation complete!",
-                result.model_dump(),
-            )
-        except Exception as e:
-            logger.error(f"Full pipeline failed at stage '{current_stage}': {e}")
-            yield _sse_event(
-                "error",
-                -1,
-                f"Pipeline failed at stage '{current_stage}': {type(e).__name__}",
-                {"failed_stage": current_stage},
-            )
+@router.get("/tasks/{task_id}/stream")
+async def stream_task_events(
+    task_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """SSE stream of events for a running task."""
+    _load_user_context(current_user)
+    task = get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task["user_id"] != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     return StreamingResponse(
-        event_stream(),
+        stream_events(task_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -1,13 +1,14 @@
-"""OpenAI-compatible AI gateway supporting multiple providers."""
+"""OpenAI-compatible AI gateway supporting multiple providers with per-user API keys."""
 
 import asyncio
 import json
 import logging
 from typing import Any, Optional
 
+import httpx
 from openai import AsyncOpenAI, APIError, APIConnectionError, RateLimitError
 
-from app.config import settings
+from app.settings_manager import get_user_setting
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +16,8 @@ logger = logging.getLogger(__name__)
 class AIGateway:
     """Gateway for OpenAI-compatible API providers.
 
-    Supports OpenAI, Groq, Ollama, and any OpenAI-compatible endpoint
-    by configuring base_url and api_key.
+    Supports per-user API key and base URL via the settings context.
+    If no per-user override exists, falls back to global settings.
     """
 
     def __init__(
@@ -26,9 +27,13 @@ class AIGateway:
         model: Optional[str] = None,
         max_retries: int = 3,
     ):
-        self.api_key = api_key or settings.openai_api_key or "not-configured"
-        self.base_url = base_url or settings.openai_base_url
-        self.model = model or settings.openai_model
+        resolved_key = api_key or get_user_setting("openai_api_key") or "not-configured"
+        resolved_url = base_url or get_user_setting("openai_base_url") or "https://api.openai.com/v1"
+        resolved_model = model or get_user_setting("openai_model") or "gpt-4o-mini"
+
+        self.api_key = resolved_key
+        self.base_url = resolved_url
+        self.model = resolved_model
         self.max_retries = max_retries
 
         self.client = AsyncOpenAI(
@@ -43,20 +48,6 @@ class AIGateway:
         max_tokens: int = 4096,
         json_mode: bool = False,
     ) -> str:
-        """Send a chat completion request with retry logic.
-
-        Args:
-            messages: List of message dicts with 'role' and 'content'.
-            temperature: Sampling temperature.
-            max_tokens: Maximum tokens in response.
-            json_mode: Whether to request JSON output format.
-
-        Returns:
-            The assistant's response content as a string.
-
-        Raises:
-            APIError: If all retries are exhausted.
-        """
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -104,7 +95,6 @@ class AIGateway:
                         f"API error (attempt {attempt + 1}/{self.max_retries}): {e}, "
                         f"waiting {wait_time}s..."
                     )
-                    await asyncio.sleep(wait_time)
                 else:
                     raise
 
@@ -118,16 +108,6 @@ class AIGateway:
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> dict[str, Any]:
-        """Send a chat completion request expecting JSON response.
-
-        Args:
-            messages: List of message dicts with 'role' and 'content'.
-            temperature: Sampling temperature.
-            max_tokens: Maximum tokens in response.
-
-        Returns:
-            Parsed JSON response as a dictionary.
-        """
         content = await self.chat_completion(
             messages=messages,
             temperature=temperature,
@@ -142,5 +122,38 @@ class AIGateway:
             raise ValueError(f"Invalid JSON response from AI: {e}") from e
 
 
-# Default gateway instance
 ai_gateway = AIGateway()
+
+
+def get_active_base_url() -> str:
+    """Resolve the active base URL from user context or global settings."""
+    return get_user_setting("openai_base_url") or "https://api.openai.com/v1"
+
+
+def get_active_api_key() -> str:
+    """Resolve the active API key from user context or global settings."""
+    return get_user_setting("openai_api_key") or "not-configured"
+
+
+async def fetch_available_models() -> list[dict[str, Any]]:
+    """Fetch available models from the currently configured provider.
+
+    Calls GET {base_url}/models using the configured API key.
+    Falls back to an empty list on any error.
+    """
+    base_url = get_active_base_url().rstrip("/")
+    api_key = get_active_api_key()
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key and api_key != "not-configured" else {}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"{base_url}/models", headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            models = data.get("data", data) if isinstance(data, dict) else data
+            if isinstance(models, list):
+                return sorted(models, key=lambda m: m.get("id", ""))
+            return []
+    except Exception as e:
+        logger.warning("Failed to fetch models from %s: %s", base_url, e)
+        return []

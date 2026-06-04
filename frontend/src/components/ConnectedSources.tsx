@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plug, CheckCircle, XCircle } from 'lucide-react';
+
 import { getProviders } from '../api/client';
 import type { MediaProviderStatus } from '../types';
 
@@ -21,26 +21,29 @@ export default function ConnectedSources() {
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 border border-gray-700 rounded-lg text-xs">
-      <Plug className="w-3.5 h-3.5 text-gray-400" />
-      <span className="text-gray-400">Sources:</span>
-      <span className="text-primary-400 font-medium">{activeCount}/{providers.length}</span>
-      <div className="hidden sm:flex items-center gap-1.5 ml-1 border-l border-gray-700 pl-2">
+    <div className="px-3 py-2">
+      <div className="flex items-center justify-between text-xs mb-2">
+        <span className="text-gray-500">Sources</span>
+        <span className="text-primary-400 font-medium">
+          {activeCount}/{providers.length} active
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1">
         {providers.map((p) => (
-          <div
+          <span
             key={p.name}
-            className="flex items-center gap-0.5"
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+              p.configured
+                ? 'bg-green-900/30 text-green-400 border border-green-800/40'
+                : 'bg-gray-800 text-gray-600 border border-gray-700'
+            }`}
             title={`${p.name}: ${p.configured ? 'connected' : 'not configured'}`}
           >
-            {p.configured ? (
-              <CheckCircle className="w-3 h-3 text-green-400" />
-            ) : (
-              <XCircle className="w-3 h-3 text-gray-600" />
-            )}
-            <span className={p.configured ? 'text-gray-300' : 'text-gray-600'}>
-              {p.name}
-            </span>
-          </div>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              p.configured ? 'bg-green-400' : 'bg-gray-600'
+            }`} />
+            {p.name}
+          </span>
         ))}
       </div>
     </div>

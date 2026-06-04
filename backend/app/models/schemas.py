@@ -107,13 +107,16 @@ class AudioSettings(BaseModel):
         default=None, description="URL of background music file to mix in"
     )
     background_music_volume: float = Field(
-        default=0.15, ge=0.0, le=1.0, description="Background music volume (0.0 to 1.0)"
+        default=0.25, ge=0.0, le=1.0, description="Background music volume (0.0 to 1.0)"
     )
     enable_ducking: bool = Field(
         default=True, description="Auto-duck background music during narration"
     )
     generate_subtitles: bool = Field(
         default=False, description="Generate SRT subtitle file alongside the video"
+    )
+    tts_voice: Optional[str] = Field(
+        default=None, description="TTS voice to use (e.g. en-US-AriaNeural, hi-IN-SwaraNeural)"
     )
 
 
@@ -208,6 +211,7 @@ class GenerateScriptRequest(BaseModel):
     topic: str = Field(..., min_length=3, max_length=500)
     duration_minutes: float = Field(default=1.0, ge=0.5, le=10.0)
     style: VideoStyle = Field(default=VideoStyle.educational)
+    language: str = Field(default="english", description="Script language (english or hindi)")
 
 
 class GenerateTTSRequest(BaseModel):
@@ -251,9 +255,89 @@ class GenerateFullRequest(BaseModel):
     topic: str = Field(..., min_length=3, max_length=500)
     duration_minutes: float = Field(default=1.0, ge=0.5, le=10.0)
     style: VideoStyle = Field(default=VideoStyle.educational)
+    language: str = Field(default="english", description="Script language (english or hindi)")
     quality_settings: Optional[VideoQualitySettings] = Field(
         default=None, description="Optional video quality settings"
     )
     audio_settings: Optional[AudioSettings] = Field(
         default=None, description="Optional audio processing settings"
     )
+
+
+class AppSettings(BaseModel):
+    """Runtime application settings returned to the frontend."""
+
+    openai_api_key: str = ""
+    openai_api_key_configured: bool = False
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o-mini"
+    pexels_api_key: str = ""
+    pexels_api_key_configured: bool = False
+    pixabay_api_key: str = ""
+    pixabay_api_key_configured: bool = False
+    giphy_api_key: str = ""
+    giphy_api_key_configured: bool = False
+    unsplash_access_key: str = ""
+    unsplash_access_key_configured: bool = False
+    freesound_api_key: str = ""
+    freesound_api_key_configured: bool = False
+    media_cache_enabled: bool = True
+    tts_voice: str = "en-US-AriaNeural"
+    output_dir: str = "./output"
+
+
+class SettingsUpdate(BaseModel):
+    """Partial settings update payload from the frontend."""
+
+    openai_api_key: Optional[str] = None
+    openai_base_url: Optional[str] = None
+    openai_model: Optional[str] = None
+    pexels_api_key: Optional[str] = None
+    pixabay_api_key: Optional[str] = None
+    giphy_api_key: Optional[str] = None
+    unsplash_access_key: Optional[str] = None
+    freesound_api_key: Optional[str] = None
+    media_cache_enabled: Optional[bool] = None
+    tts_voice: Optional[str] = None
+    output_dir: Optional[str] = None
+
+
+class SignupRequest(BaseModel):
+    """Request to create a new account."""
+
+    email: str
+    password: str
+    full_name: str = ""
+
+
+class LoginRequest(BaseModel):
+    """Request to log in."""
+
+    email: str
+    password: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Request to update user profile."""
+
+    email: str | None = None
+    full_name: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None
+
+
+class AIModelInfo(BaseModel):
+    """Information about an available AI model from the provider."""
+
+    id: str = Field(..., description="Model ID")
+    name: str = Field("", description="Model name/description")
+    owned_by: str = Field("", description="Organization that owns the model")
+
+
+class UserResponse(BaseModel):
+    """Public user data returned from the API."""
+
+    user_id: str
+    email: str
+    full_name: str
+    created_at: str

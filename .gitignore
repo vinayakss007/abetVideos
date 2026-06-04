@@ -28,3 +28,9 @@ output/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets and runtime data
+backend/app/.jwt_secret
+backend/app/data/
+backend/app/user_settings/
+*.json.bak
